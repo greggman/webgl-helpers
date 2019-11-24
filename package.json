@@ -1,0 +1,22 @@
+{
+  "name": "webgl-helpers",
+  "version": "1.0.0",
+  "description": "Some helper scripts for WebGL",
+  "main": "dist/webgl-helpers.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/greggman/webgl-helpers.git"
+  },
+  "keywords": [
+    "webgl"
+  ],
+  "author": "Gregg Tavares",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/greggman/webgl-helpers/issues"
+  },
+  "homepage": "https://github.com/greggman/webgl-helpers#readme"
+}

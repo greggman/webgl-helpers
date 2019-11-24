@@ -1,0 +1,13 @@
+<canvas></canvas>
+<script>
+const gl = document.querySelector('canvas').getContext('webgl');
+
+gl.enable(gl.BLEND);
+gl.enable(gl.CULL_FADE);
+gl.enable(gl.DEPTH_TEST);
+
+const tex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, tex);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT16, 512, 256, 0, gl.DEPTH_COMPONENT16, gl.INT, null);
+</script>
+
