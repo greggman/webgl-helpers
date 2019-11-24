@@ -17,7 +17,7 @@ Want to dump shaders, add this script at the top of your HTML file
 <script src="webgl-log-shaders.js"></script>
 ```
 
-For example [here's a Unity example with the script above added to the top of the HTML file](https://greggman.github.io/webgl-helpers/examples/unity/index-log-shader.html).
+For example [here's a Unity example with the script above added to the top of the HTML file](https://greggman.github.io/webgl-helpers/examples/unity/index-log-shaders.html).
 
 <img src="https://greggman.github.io/webgl-helpers/images/unity-log-shaders.png" />
 
@@ -35,8 +35,8 @@ Forces `preserveDrawingBuffer: true`.
 
 Example:
 
-* [without script](https://greggman.github.io/examples/2d-lines.html)
-* [with script](https://greggman.github.io/examples/2d-lines-force-preservedrawingbuffer.html)
+* [without script](https://greggman.github.io/webgl-helpers/examples/2d-lines.html)
+* [with script](https://greggman.github.io/webgl-helpers/examples/2d-lines-force-preservedrawingbuffer.html)
 
 <img src="https://greggman.github.io/webgl-helpers/images/preservedrawingbuffer.png" />
 
