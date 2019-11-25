@@ -1,6 +1,6 @@
 {
   "name": "webgl-helpers",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Some helper scripts for WebGL",
   "main": "dist/webgl-helpers.js",
   "scripts": {
