@@ -1,6 +1,6 @@
 # WebGL Helpers
 
-Some tiny scripts that might come in handle.
+Some tiny scripts that might come in handy.
 
 ```
 <script src="https://cdn.jsdelivr.net/npm/webgl-helpers@1.0.0/webgl-log-shaders.js"></script>
