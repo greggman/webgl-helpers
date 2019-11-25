@@ -33,6 +33,8 @@ Disables WebGL2. Useful to force something to use WebGL1 assuming it can handle 
 
 Forces `preserveDrawingBuffer: true`.
 
+Maybe you want to take a screenshot of some canvas that another script is controlling.
+
 Example:
 
 * [without script](https://greggman.github.io/webgl-helpers/examples/2d-lines.html)
