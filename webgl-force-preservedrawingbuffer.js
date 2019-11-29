@@ -1,13 +1,13 @@
 (function() {
 
   if (typeof HTMLCanvasElement !== "undefined") {
-    forcePreserveDrawingBuffer(HTMLCanvasElement);
+    wrapGetContext(HTMLCanvasElement);
   }
   if (typeof OffscreenCanvas !== "undefined") {
-    forcePreserveDrawingBuffer(OffscreenCanvas);
+    wrapGetContext(OffscreenCanvas);
   }
 
-  function forcePreserveDrawingBuffer(ContextClass) {
+  function wrapGetContext(ContextClass) {
     const isWebGL = /webgl/i;
 
     ContextClass.prototype.getContext = function(origFn) {

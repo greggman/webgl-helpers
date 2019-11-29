@@ -8,12 +8,14 @@
   }
 
   function wrapGetContext(ContextClass) {
+    const isWebGL = /webgl/i;
+
     ContextClass.prototype.getContext = function(origFn) {
       return function(type, attributes) {
-        if (type === 'webgl2') {
-          return null;
+        if (isWebGL.test(type)) {
+          attributes = Object.assign({}, attributes || {}, {premultipliedAlpha: true});
         }
-        return origFn.apply(this, arguments);
+        return origFn.call(this, type, attributes);
       };
     }(ContextClass.prototype.getContext);
   }
