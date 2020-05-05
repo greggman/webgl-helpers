@@ -1,8 +1,75 @@
 # WebGL Helpers
 
-Some tiny scripts that might come in handy.
+Some tiny scripts and debugger snippets that might come in handy.
+
+## glEnumToString
 
 ```
+function glEnumToString(gl, value) {
+  const keys = [];
+  for (const key in gl) {
+    if (gl[key] === value) {
+      keys.push(key);
+    }
+  }
+  return keys.length ? keys.join(' | ') : `0x${value.toString(16)}`;
+}
+```
+
+## Show the available extensions
+
+```
+document.createElement("canvas").getContext("webgl").getSupportedExtensions().join('\n');
+document.createElement("canvas").getContext("webgl2").getSupportedExtensions().join('\n');
+```
+
+## Spy on draw calls
+
+Copy and paste this into the JavaScript console
+
+```
+function glEnumToString(gl, value) {
+  const keys = [];
+  for (const key in gl) {
+    if (gl[key] === value) {
+      keys.push(key);
+    }
+  }
+  return keys.length ? keys.join(' | ') : `0x${value.toString(16)}`;
+}
+
+function wrapFn(p, fn) {
+  const origFn = p[fn];
+  p[fn] = function(...args) {
+    console.log(fn, glEnumToString(this, args[0]));
+    return origFn.call(this, ...args);
+  };
+}
+
+function wrapFnP(p, fn) {
+  wrapFn(p.prototype, fn);
+}
+
+wrapFnP(WebGLRenderingContext, 'drawArrays');
+wrapFnP(WebGLRenderingContext, 'drawElements');
+wrapFnP(WebGL2RenderingContext, 'drawArrays');
+wrapFnP(WebGL2RenderingContext, 'drawElements');
+wrapFnP(WebGL2RenderingContext, 'drawArraysInstanced');
+wrapFnP(WebGL2RenderingContext, 'drawElementsInstanced');
+wrapFnP(WebGL2RenderingContext, 'drawRangeElements');
+
+ext = document.createElement("canvas").getContext("webgl").getExtension('ANGLE_instanced_arrays');
+wrapFn(ext.__proto__, 'drawArraysInstancedANGLE');
+wrapFn(ext.__proto__, 'drawElementsInstancedANGLE');
+
+```
+
+Example, select the correct context, then copy and paste
+
+<img src="https://greggman.github.io/webgl-helpers/images/log-draw-calls-jsconsole.gif" />
+
+## scripts to use when your including a 3rd party WebGL lib (Unity, three.js, etc...)
+
 <script src="https://greggman.github.io/webgl-helpers/webgl2-disable.js"></script>
 <script src="https://greggman.github.io/webgl-helpers/webgl-log-shaders.js"></script>
 <script src="https://greggman.github.io/webgl-helpers/webgl-force-preservedrawingbuffer.js"></script>
@@ -74,6 +141,12 @@ Forces the powerPreference setting.
 Could be useful if the library you're using has no way to set this
 and you want it to be something other than the default.
 
+## webgl-debug-helper.js
+
+Calls `getError` after every function and reports if there was an error.
+
+* [without script](https://greggman.github.io/webgl-helpers/examples/error-without-helper.html)
+* [with script](https://greggman.github.io/webgl-helpers/examples/error-with-helper.html)
 
 
 # Why?
