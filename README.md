@@ -28,6 +28,7 @@ document.createElement("canvas").getContext("webgl2").getSupportedExtensions().j
 Copy and paste this into the JavaScript console
 
 ```
+(function() {
 function glEnumToString(gl, value) {
   const keys = [];
   for (const key in gl) {
@@ -61,7 +62,7 @@ wrapFnP(WebGL2RenderingContext, 'drawRangeElements');
 ext = document.createElement("canvas").getContext("webgl").getExtension('ANGLE_instanced_arrays');
 wrapFn(ext.__proto__, 'drawArraysInstancedANGLE');
 wrapFn(ext.__proto__, 'drawElementsInstancedANGLE');
-
+}())
 ```
 
 Example, select the correct context, then copy and paste
