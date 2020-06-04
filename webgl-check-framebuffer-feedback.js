@@ -24,6 +24,11 @@
     return !!gl.texImage3D;
   }
 
+  const extensionToContext = new Map();
+  function rememberExtensionContext(gl, ext) {
+    extensionToContext.set(ext, gl);
+  }
+
   const SAMPLER_2D                    = 0x8B5E;
   const SAMPLER_CUBE                  = 0x8B60;
   const SAMPLER_3D                    = 0x8B5F;
@@ -150,6 +155,10 @@
     }
   }
 
+  function checkFramebufferFeedbackExt(ext) {
+    checkFramebufferFeedback(extensionToContext.get(ext));
+  }
+
   function checkTextureUsage(gl, textureAttachments, program, uniformName, uniformType) {
     const location = gl.getUniformLocation(program, uniformName);
     const textureUnit = gl.getUniform(program, location);
@@ -160,32 +169,35 @@
        : [];
   }
 
-  function wrapFn(p, fn) {
+  function wrapFn(p, fn, wrapperFn) {
     const origFn = p[fn];
     p[fn] = function(...args) {
-      checkFramebufferFeedback(this);
-      return origFn.call(this, ...args);
+      const result = origFn.call(this, ...args);
+      wrapperFn(this, result, ...args);
+      return result;
     };
   }
 
-  function wrapFnP(p, fn) {
-    wrapFn(p.prototype, fn);
+  function wrapFnP(p, fn, wrapperFn) {
+    wrapFn(p.prototype, fn, wrapperFn);
   }
 
-  wrapFnP(WebGLRenderingContext, 'drawArrays');
-  wrapFnP(WebGLRenderingContext, 'drawElements');
+  wrapFnP(WebGLRenderingContext, 'getExtension', rememberExtensionContext);
+  wrapFnP(WebGLRenderingContext, 'drawArrays', checkFramebufferFeedback);
+  wrapFnP(WebGLRenderingContext, 'drawElements', checkFramebufferFeedback);
 
   if (typeof WebGL2RenderingContext !== 'undefined') {
-    wrapFnP(WebGL2RenderingContext, 'drawArrays');
-    wrapFnP(WebGL2RenderingContext, 'drawElements');
-    wrapFnP(WebGL2RenderingContext, 'drawArraysInstanced');
-    wrapFnP(WebGL2RenderingContext, 'drawElementsInstanced');
-    wrapFnP(WebGL2RenderingContext, 'drawRangeElements');
+    wrapFnP(WebGL2RenderingContext, 'getExtension', rememberExtensionContext);
+    wrapFnP(WebGL2RenderingContext, 'drawArrays', checkFramebufferFeedback);
+    wrapFnP(WebGL2RenderingContext, 'drawElements', checkFramebufferFeedback);
+    wrapFnP(WebGL2RenderingContext, 'drawArraysInstanced', checkFramebufferFeedback);
+    wrapFnP(WebGL2RenderingContext, 'drawElementsInstanced', checkFramebufferFeedback);
+    wrapFnP(WebGL2RenderingContext, 'drawRangeElements', checkFramebufferFeedback);
   }
 
   const ext = document.createElement("canvas").getContext("webgl").getExtension('ANGLE_instanced_arrays');
   if (ext) {
-    wrapFn(ext.__proto__, 'drawArraysInstancedANGLE');
-    wrapFn(ext.__proto__, 'drawElementsInstancedANGLE');
+    wrapFn(ext.__proto__, 'drawArraysInstancedANGLE', checkFramebufferFeedbackExt);
+    wrapFn(ext.__proto__, 'drawElementsInstancedANGLE', checkFramebufferFeedbackExt);
   }
 }())

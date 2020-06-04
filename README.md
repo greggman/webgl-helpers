@@ -28,42 +28,10 @@ document.createElement("canvas").getContext("webgl2").getSupportedExtensions().j
 Copy and paste this into the JavaScript console
 
 ```
-(function() {
-function glEnumToString(gl, value) {
-  const keys = [];
-  for (const key in gl) {
-    if (gl[key] === value) {
-      keys.push(key);
-    }
-  }
-  return keys.length ? keys.join(' | ') : `0x${value.toString(16)}`;
-}
-
-function wrapFn(p, fn) {
-  const origFn = p[fn];
-  p[fn] = function(...args) {
-    console.log(fn, glEnumToString(this, args[0]));
-    return origFn.call(this, ...args);
-  };
-}
-
-function wrapFnP(p, fn) {
-  wrapFn(p.prototype, fn);
-}
-
-wrapFnP(WebGLRenderingContext, 'drawArrays');
-wrapFnP(WebGLRenderingContext, 'drawElements');
-wrapFnP(WebGL2RenderingContext, 'drawArrays');
-wrapFnP(WebGL2RenderingContext, 'drawElements');
-wrapFnP(WebGL2RenderingContext, 'drawArraysInstanced');
-wrapFnP(WebGL2RenderingContext, 'drawElementsInstanced');
-wrapFnP(WebGL2RenderingContext, 'drawRangeElements');
-
-ext = document.createElement("canvas").getContext("webgl").getExtension('ANGLE_instanced_arrays');
-wrapFn(ext.__proto__, 'drawArraysInstancedANGLE');
-wrapFn(ext.__proto__, 'drawElementsInstancedANGLE');
-}())
+(()=>{const s = document.createElement('script');s.src='https://greggman.github.io/webgl-helpers/webgl-show-draw-calls.js';document.firstElementChild.appendChild(s)})();
 ```
+
+or copy and pasted [the entire file](https://raw.githubusercontent.com/greggman/webgl-helpers/master/webgl-show-draw-calls.js) into the JavaScript console.
 
 Example, select the correct context, then copy and paste
 
@@ -105,6 +73,14 @@ For example [here's a Unity example with the script above added to the top of th
 And here's [the same with three.js](https://greggman.github.io/webgl-helpers/examples/threejs/).
 
 <img src="https://greggman.github.io/webgl-helpers/images/threejs-log-shaders.png" />
+
+## webgl-dump-shaders.js
+
+Same as above except you can possibly copy and paste this contents into the JS console.
+
+```
+(()=>{const s = document.createElement('script');s.src='https://greggman.github.io/webgl-helpers/webgl-dump-shaders.js';document.firstElementChild.appendChild(s)})();
+```
 
 ## webgl-check-framebuffer-feedback.js
 
