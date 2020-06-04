@@ -78,7 +78,7 @@ Or use
 ## scripts to use when your including a 3rd party WebGL lib (Unity, three.js, etc...)
 
 ```
-<script src="https:///greggman.github.io/webgl-helpers/webgl-check-frame-buffer-feedback.js"></script>
+<script src="https:///greggman.github.io/webgl-helpers/webgl-check-framebuffer-feedback.js"></script>
 <script src="https://greggman.github.io/webgl-helpers/webgl2-disable.js"></script>
 <script src="https://greggman.github.io/webgl-helpers/webgl-log-shaders.js"></script>
 <script src="https://greggman.github.io/webgl-helpers/webgl-force-preservedrawingbuffer.js"></script>
