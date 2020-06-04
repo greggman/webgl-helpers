@@ -69,9 +69,16 @@ Example, select the correct context, then copy and paste
 
 <img src="https://greggman.github.io/webgl-helpers/images/log-draw-calls-jsconsole.gif" />
 
+Or use 
+
+```
+<script src="https:///greggman.github.io/webgl-helpers/webgl-show-draw-calls.js"></script>
+```
+
 ## scripts to use when your including a 3rd party WebGL lib (Unity, three.js, etc...)
 
 ```
+<script src="https:///greggman.github.io/webgl-helpers/webgl-check-frame-buffer-feedback.js"></script>
 <script src="https://greggman.github.io/webgl-helpers/webgl2-disable.js"></script>
 <script src="https://greggman.github.io/webgl-helpers/webgl-log-shaders.js"></script>
 <script src="https://greggman.github.io/webgl-helpers/webgl-force-preservedrawingbuffer.js"></script>
@@ -98,6 +105,14 @@ For example [here's a Unity example with the script above added to the top of th
 And here's [the same with three.js](https://greggman.github.io/webgl-helpers/examples/threejs/).
 
 <img src="https://greggman.github.io/webgl-helpers/images/threejs-log-shaders.png" />
+
+## webgl-check-framebuffer-feedback.js
+
+Browsers will tell you that you have a framebuffer feedback error,
+that you're reading from a texture that is also being written to,
+but they won't give you any more details. This script will check
+for that error and throw and tell you which uniform, texture unit,
+and framebuffer attachment are the issue.
 
 ## webgl-disable2.js
 
