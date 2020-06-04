@@ -72,13 +72,13 @@ Example, select the correct context, then copy and paste
 Or use 
 
 ```
-<script src="https:///greggman.github.io/webgl-helpers/webgl-show-draw-calls.js"></script>
+<script src="https://greggman.github.io/webgl-helpers/webgl-show-draw-calls.js"></script>
 ```
 
 ## scripts to use when your including a 3rd party WebGL lib (Unity, three.js, etc...)
 
 ```
-<script src="https:///greggman.github.io/webgl-helpers/webgl-check-framebuffer-feedback.js"></script>
+<script src="https://greggman.github.io/webgl-helpers/webgl-check-framebuffer-feedback.js"></script>
 <script src="https://greggman.github.io/webgl-helpers/webgl2-disable.js"></script>
 <script src="https://greggman.github.io/webgl-helpers/webgl-log-shaders.js"></script>
 <script src="https://greggman.github.io/webgl-helpers/webgl-force-preservedrawingbuffer.js"></script>
