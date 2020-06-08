@@ -82,6 +82,10 @@ Same as above except you can possibly copy and paste this contents into the JS c
 (()=>{const s = document.createElement('script');s.src='https://greggman.github.io/webgl-helpers/webgl-dump-shaders.js';document.firstElementChild.appendChild(s)})();
 ```
 
+For example Google Maps
+
+<img src="https://greggman.github.io/webgl-helpers/images/dump-shaders-google-maps.png" />
+
 ## webgl-check-framebuffer-feedback.js
 
 Browsers will tell you that you have a framebuffer feedback error,
