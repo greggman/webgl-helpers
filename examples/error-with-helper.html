@@ -1,15 +1,16 @@
 <script src="../webgl-gl-error-check.js"></script>
+<p>see JavaScript console</p>
 <canvas></canvas>
 <script>
 const gl = document.querySelector('canvas').getContext('webgl');
 
-gl.enable(gl.BLEND);
-gl.enable(gl.CULL_FADE);
-gl.enable(gl.DEPTH_TEST);
-
 const buf = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, buf);
 gl.vertexAttribPointer(0, 1, gl.BYE, false, 0, 0);  // error
+
+gl.enable(gl.BLEND);
+gl.enable(gl.CULL_FADE);  // error
+gl.enable(gl.DEPTH_TEST);
 
 const tex = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, tex);
