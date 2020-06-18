@@ -85,6 +85,8 @@ and framebuffer attachment are the issue.
 <script src="https://greggman.github.io/webgl-helpers/webgl-check-framebuffer-feedback.js"></script>
 ```
 
+[Example](https://greggman.github.io/webgl-helpers/examples/framebuffer-feedback-error.html)
+
 ## webgl-disable2.js
 
 Disables WebGL2. Useful to force something to use WebGL1 assuming it can handle both
