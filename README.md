@@ -43,27 +43,14 @@ Or use
 <script src="https://greggman.github.io/webgl-helpers/webgl-show-draw-calls.js"></script>
 ```
 
-## scripts to use when your including a 3rd party WebGL lib (Unity, three.js, etc...)
-
-```
-<script src="https://greggman.github.io/webgl-helpers/webgl-check-framebuffer-feedback.js"></script>
-<script src="https://greggman.github.io/webgl-helpers/webgl2-disable.js"></script>
-<script src="https://greggman.github.io/webgl-helpers/webgl-log-shaders.js"></script>
-<script src="https://greggman.github.io/webgl-helpers/webgl-force-preservedrawingbuffer.js"></script>
-<script src="https://greggman.github.io/webgl-helpers/webgl-force-alpha-true.js"></script>
-<script src="https://greggman.github.io/webgl-helpers/webgl-force-alpha-false.js"></script>
-<script src="https://greggman.github.io/webgl-helpers/webgl-powerpreference-low-power.js"></script>
-<script src="https://greggman.github.io/webgl-helpers/webgl-powerpreference-high-performance.js"></script>
-<script src="https://greggman.github.io/webgl-helpers/webgl-force-premultipliedalpha-true.js"></script>
-<script src="https://greggman.github.io/webgl-helpers/webgl-force-premultipliedalpha-false.js"></script>
-```
+# scripts to use when your including a 3rd party WebGL lib (Unity, three.js, etc...)
 
 ## webgl-log-shaders.js
 
 Want to dump shaders, add this script at the top of your HTML file
 
 ```
-<script src="webgl-log-shaders.js"></script>
+<script src="https://greggman.github.io/webgl-helpers/webgl-log-shaders.js"></script>
 ```
 
 For example [here's a Unity example with the script above added to the top of the HTML file](https://greggman.github.io/webgl-helpers/examples/unity/index-log-shaders.html).
@@ -94,15 +81,27 @@ but they won't give you any more details. This script will check
 for that error and throw and tell you which uniform, texture unit,
 and framebuffer attachment are the issue.
 
+```
+<script src="https://greggman.github.io/webgl-helpers/webgl-check-framebuffer-feedback.js"></script>
+```
+
 ## webgl-disable2.js
 
 Disables WebGL2. Useful to force something to use WebGL1 assuming it can handle both
+
+```
+<script src="https://greggman.github.io/webgl-helpers/webgl2-disable.js"></script>
+```
 
 ## webgl-force-preservedrawingbuffer.js
 
 Forces `preserveDrawingBuffer: true`.
 
 Maybe you want to take a screenshot of some canvas that another script is controlling.
+
+```
+<script src="https://greggman.github.io/webgl-helpers/webgl-force-preservedrawingbuffer.js"></script>
+```
 
 Example:
 
@@ -120,6 +119,14 @@ Could be useful if you can't figure out how to get a certain library to
 be one or the other. For example the myriad of poorly documented ways
 that emscripten creates a canvas.
 
+```
+<script src="https://greggman.github.io/webgl-helpers/webgl-force-alpha-true.js"></script>
+```
+
+```
+<script src="https://greggman.github.io/webgl-helpers/webgl-force-alpha-false.js"></script>
+```
+
 ## webgl-force-premultipliedalpha-true.js
 ## webgl-force-premultipliedalpha-false.js
 
@@ -129,6 +136,14 @@ Could be useful if you can't figure out how to get a certain library to
 be one or the other. For example the myriad of poorly documented ways
 that emscripten creates a canvas.
 
+```
+<script src="https://greggman.github.io/webgl-helpers/webgl-force-premultipliedalpha-true.js"></script>
+```
+
+```
+<script src="https://greggman.github.io/webgl-helpers/webgl-force-premultipliedalpha-false.js"></script>
+```
+
 ## webgl-force-powerpreference-low-power.js
 ## webgl-force-powerpreference-high-performance.js
 
@@ -137,13 +152,24 @@ Forces the powerPreference setting.
 Could be useful if the library you're using has no way to set this
 and you want it to be something other than the default.
 
-## webgl-debug-helper.js
+```
+<script src="https://greggman.github.io/webgl-helpers/webgl-powerpreference-low-power.js"></script>
+```
 
-Calls `getError` after every function and reports if there was an error.
+```
+<script src="https://greggman.github.io/webgl-helpers/webgl-powerpreference-high-performance.js"></script>
+```
+
+## webgl-gl-error-check.js
+
+Calls `getError` after every function and throws if there was an error.
 
 * [without script](https://greggman.github.io/webgl-helpers/examples/error-without-helper.html)
 * [with script](https://greggman.github.io/webgl-helpers/examples/error-with-helper.html)
 
+```
+<script src="https://greggman.github.io/webgl-helpers/webgl-gl-error-check.js"></script>
+```
 
 # Why?
 
