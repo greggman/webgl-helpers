@@ -64,7 +64,7 @@
   samplerTypeToBinding.set(SAMPLER_CUBE, TEXTURE_BINDING_CUBE_MAP);
   samplerTypeToBinding.set(SAMPLER_CUBE_SHADOW, TEXTURE_BINDING_CUBE_MAP);
 
-  function getTextureForUnit(unit, type) {
+  function getTextureForUnit(gl, unit, type) {
     gl.activeTexture(gl.TEXTURE0 + unit);
     const binding = samplerTypeToBinding.get(type);
     return gl.getParameter(binding);
@@ -162,7 +162,7 @@
   function checkTextureUsage(gl, textureAttachments, program, uniformName, uniformType) {
     const location = gl.getUniformLocation(program, uniformName);
     const textureUnit = gl.getUniform(program, location);
-    const texture = getTextureForUnit(textureUnit, uniformType);
+    const texture = getTextureForUnit(gl, textureUnit, uniformType);
     const attachments = textureAttachments.get(texture);
     return attachments
        ? [`texture on uniform: ${uniformName} bound to texture unit ${textureUnit} is also attached to current framebuffer on attachment: ${attachments.map(a => glEnumToString(gl, a)).join(', ')}`]
