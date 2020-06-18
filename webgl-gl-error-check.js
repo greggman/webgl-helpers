@@ -31,17 +31,7 @@
 
 /* global define */
 
-(function(root, factory) {  // eslint-disable-line
-  if (typeof define === 'function' && define.amd) {
-    // AMD. Register as an anonymous module.
-    define([], function() {
-      return factory.call(root);
-    });
-  } else {
-    // Browser globals
-    root.webglDebugHelper = factory.call(root);
-  }
-}(this, function() {
+(function() {
   'use strict';  // eslint-disable-line
 
   //------------ [ from https://github.com/KhronosGroup/WebGLDeveloperTools ]
@@ -463,10 +453,7 @@
       wrappers: {},
     };
     options.sharedState = sharedState;
-
-    const errorFunc = options.errorFunc || function(err, functionName, args) {
-      console.error(`WebGL error ${glEnumToString(ctx, err)} in gl.${functionName}(${glFunctionArgsToString(ctx, functionName, args)})`);  /* eslint-disable-line no-console */
-    };
+    const errorFunc = options.errorFunc;
 
     // Holds booleans for each GL error so after we get the error ourselves
     // we can still return it to the client app.
@@ -499,15 +486,15 @@
     // Makes a function that calls a WebGL function and then calls getError.
     function makeErrorWrapper(ctx, functionName) {
       const check = functionName.substring(0, 4) === 'draw' ? checkMaxDrawCalls : noop;
-      return function() {
+      return function(...args) {
         if (onFunc) {
-          onFunc(functionName, arguments);
+          onFunc(functionName, args);
         }
-        const result = ctx[functionName].apply(ctx, arguments);
+        const result = ctx[functionName].call(ctx, ...args);
         const err = errCtx.getError();
         if (err !== 0) {
           glErrorShadow[err] = true;
-          errorFunc(err, functionName, arguments);
+          errorFunc(err, functionName, args);
         }
         check();
         return result;
@@ -515,11 +502,11 @@
     }
 
     function makeGetExtensionWrapper(ctx, wrapped) {
-      return function() {
-        const extensionName = arguments[0];
+      return function(...args) {
+        const extensionName = args[0];
         let ext = sharedState.wrappers[extensionName];
         if (!ext) {
-          ext = wrapped.apply(ctx, arguments);
+          ext = wrapped.call(ctx, ...args);
           if (ext) {
             const origExt = ext;
             ext = makeDebugContext(ext, Object.assign({}, options, {errCtx: ctx}));
@@ -599,14 +586,7 @@
   }
 
   function reportJSError(url, lineNo, colNo, msg) {
-    // try {
-    //   const {origUrl, actualLineNo} = window.parent.getActualLineNumberAndMoveTo(url, lineNo, colNo);
-    //   url = origUrl;
-    //   lineNo = actualLineNo;
-    // } catch (ex) {
-    //   origConsole.error(ex);
-    // }
-    console.error(url, "line:", lineNo, ":", msg);  // eslint-disable-line
+    throw new Error(`${url}:${lineNo}: ${msg}`);
   }
 
   /**
@@ -684,13 +664,13 @@
 
 
   HTMLCanvasElement.prototype.getContext = (function(oldFn) {
-    return function() {
-      let ctx = oldFn.apply(this, arguments);
+    return function(...args) {
+      let ctx = oldFn.call(this, ...args);
       // Using bindTexture to see if it's WebGL. Could check for instanceof WebGLRenderingContext
       // but that might fail if wrapped by debugging extension
       if (ctx && ctx.bindTexture) {
         ctx = makeDebugContext(ctx, {
-          maxDrawCalls: 200,
+          maxDrawCalls: 1000,
           errorFunc: function(err, funcName, args) {
             const numArgs = args.length;
             const enumedArgs = [].map.call(args, function(arg, ndx) {
@@ -706,7 +686,7 @@
             if (errorInfo) {
               reportJSError(errorInfo.url, errorInfo.lineNo, errorInfo.colNo, errorMsg);
             } else {
-              console.error(errorMsg)  // eslint-disable-line
+              throw new Error(errorMsg)
             }
           },
         });
@@ -715,5 +695,5 @@
     };
   }(HTMLCanvasElement.prototype.getContext));
 
-}));
+})();
 
