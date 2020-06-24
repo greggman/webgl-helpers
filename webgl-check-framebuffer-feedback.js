@@ -141,7 +141,7 @@
         let baseName = (name.substr(-3) === "[0]")
             ? name.substr(0, name.length - 3)
             : name;
-        for (let t = 0; t < uniformInfo.size; ++t) {
+        for (let t = 0; t < size; ++t) {
           errors.push(...checkTextureUsage(gl, textureAttachments, program, `${baseName}[${t}]`, type));
         }
       } else {

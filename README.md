@@ -73,20 +73,6 @@ For example Google Maps
 
 <img src="https://greggman.github.io/webgl-helpers/images/dump-shaders-google-maps.png" />
 
-## webgl-check-framebuffer-feedback.js
-
-Browsers will tell you that you have a framebuffer feedback error,
-that you're reading from a texture that is also being written to,
-but they won't give you any more details. This script will check
-for that error and throw and tell you which uniform, texture unit,
-and framebuffer attachment are the issue.
-
-```
-<script src="https://greggman.github.io/webgl-helpers/webgl-check-framebuffer-feedback.js"></script>
-```
-
-[Example](https://greggman.github.io/webgl-helpers/examples/framebuffer-feedback-error.html)
-
 ## webgl-disable2.js
 
 Disables WebGL2. Useful to force something to use WebGL1 assuming it can handle both
@@ -164,7 +150,8 @@ and you want it to be something other than the default.
 
 ## webgl-gl-error-check.js
 
-Calls `getError` after every function and throws if there was an error.
+Calls `getError` after every function and throws if there was an error. Also tries to provide
+more info about why, for example framebuffer feedback issues, access out of range issues, ...
 
 * [without script](https://greggman.github.io/webgl-helpers/examples/error-without-helper.html)
 * [with script](https://greggman.github.io/webgl-helpers/examples/error-with-helper.html)

@@ -34,6 +34,320 @@
 (function() {
   'use strict';  // eslint-disable-line
 
+  function isBuiltIn(name) {
+    return name.startsWith("gl_") || name.startsWith("webgl_");
+  }
+
+  function isWebGL2(gl) {
+    // a proxy for if this is webgl
+    return !!gl.texImage3D;
+  }
+
+  // ---------------------------------
+  const FLOAT                         = 0x1406;
+  const FLOAT_VEC2                    = 0x8B50;
+  const FLOAT_VEC3                    = 0x8B51;
+  const FLOAT_VEC4                    = 0x8B52;
+  const INT                           = 0x1404;
+  const INT_VEC2                      = 0x8B53;
+  const INT_VEC3                      = 0x8B54;
+  const INT_VEC4                      = 0x8B55;
+  const BOOL                          = 0x8B56;
+  const BOOL_VEC2                     = 0x8B57;
+  const BOOL_VEC3                     = 0x8B58;
+  const BOOL_VEC4                     = 0x8B59;
+  const FLOAT_MAT2                    = 0x8B5A;
+  const FLOAT_MAT3                    = 0x8B5B;
+  const FLOAT_MAT4                    = 0x8B5C;
+  const UNSIGNED_INT                  = 0x1405;
+  const UNSIGNED_INT_VEC2             = 0x8DC6;
+  const UNSIGNED_INT_VEC3             = 0x8DC7;
+  const UNSIGNED_INT_VEC4             = 0x8DC8;
+
+  const attrTypeMap = {};
+  attrTypeMap[FLOAT]             = { size:  4, };
+  attrTypeMap[FLOAT_VEC2]        = { size:  8, };
+  attrTypeMap[FLOAT_VEC3]        = { size: 12, };
+  attrTypeMap[FLOAT_VEC4]        = { size: 16, };
+  attrTypeMap[INT]               = { size:  4, };
+  attrTypeMap[INT_VEC2]          = { size:  8, };
+  attrTypeMap[INT_VEC3]          = { size: 12, };
+  attrTypeMap[INT_VEC4]          = { size: 16, };
+  attrTypeMap[UNSIGNED_INT]      = { size:  4, };
+  attrTypeMap[UNSIGNED_INT_VEC2] = { size:  8, };
+  attrTypeMap[UNSIGNED_INT_VEC3] = { size: 12, };
+  attrTypeMap[UNSIGNED_INT_VEC4] = { size: 16, };
+  attrTypeMap[BOOL]              = { size:  4, };
+  attrTypeMap[BOOL_VEC2]         = { size:  8, };
+  attrTypeMap[BOOL_VEC3]         = { size: 12, };
+  attrTypeMap[BOOL_VEC4]         = { size: 16, };
+  attrTypeMap[FLOAT_MAT2]        = { size:  4, count: 2, };
+  attrTypeMap[FLOAT_MAT3]        = { size:  9, count: 3, };
+  attrTypeMap[FLOAT_MAT4]        = { size: 16, count: 4, };
+
+  const BYTE                         = 0x1400;
+  const UNSIGNED_BYTE                = 0x1401;
+  const SHORT                        = 0x1402;
+  const UNSIGNED_SHORT               = 0x1403;
+
+  function getBytesPerValueForGLType(type) {
+    if (type === BYTE)           return 1;  // eslint-disable-line
+    if (type === UNSIGNED_BYTE)  return 1;  // eslint-disable-line
+    if (type === SHORT)          return 2;  // eslint-disable-line
+    if (type === UNSIGNED_SHORT) return 2;  // eslint-disable-line
+    if (type === INT)            return 4;  // eslint-disable-line
+    if (type === UNSIGNED_INT)   return 4;  // eslint-disable-line
+    if (type === FLOAT)          return 4;  // eslint-disable-line
+    return 0;
+  }
+
+  const funcsToArgs = {
+    drawArrays(primType, startOffset, vertCount) { return {startOffset, vertCount, instances: 1}; },
+    drawElements(primType, vertCount, indexType, startOffset) { return {startOffset, vertCount, instances: 1, indexType}; },
+    drawArraysInstanced(primType, startOffset, vertCount, instances) { return {startOffset, vertCount, instances}; },
+    drawElementsInstanced(primType, vertCount, indexType, startOffset, instances) { return {startOffset, vertCount, instances, indexType}; },
+    drawArraysInstancedANGLE(primType, startOffset, vertCount, instances) { return {startOffset, vertCount, instances}; },
+    drawElementsInstancedANGLE(primType, vertCount, indexType, startOffset, instances) { return {startOffset, vertCount, instances, indexType}; },
+    drawRangeElements(primType, start, end, vertCount, indexType, startOffset) { return {startOffset, vertCount, instances: 1, indexType}; },
+  };
+
+  const glTypeToTypedArray = {}
+  glTypeToTypedArray[UNSIGNED_BYTE] = Uint8Array;
+  glTypeToTypedArray[UNSIGNED_SHORT] = Uint16Array;
+  glTypeToTypedArray[UNSIGNED_INT] = Uint32Array;
+
+  const bufferToIndices = new Map();
+
+  function computeLastUseIndexForDrawArrays(startOffset, vertCount, instances, errors) {
+    return startOffset + vertCount - 1;
+  }
+
+  function getLastUsedIndexForDrawElements(gl, funcName, startOffset, vertCount, instances, indexType, errors) {
+    const elementBuffer = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);
+    if (!elementBuffer) {
+      errors.push('No ELEMENT_ARRAY_BUFFER bound');
+      return;
+    }
+    const bytesPerIndex = getBytesPerValueForGLType(indexType);
+    const bufferSize = gl.getBufferParameter(gl.ELEMENT_ARRAY_BUFFER, gl.BUFFER_SIZE);
+    const sizeNeeded = startOffset + vertCount * bytesPerIndex;
+    if (sizeNeeded > bufferSize) {
+      errors.push(`offset: ${startOffset} and count: ${vertCount} with index type: ${glEnumToString(gl, indexType)} passed to ${funcName} are out of range for current ELEMENT_ARRAY_BUFFER.
+Those parameters require ${sizeNeeded} bytes but the current ELEMENT_ARRAY_BUFFER only has ${bufferSize} bytes`);
+      return;
+    }
+    const buffer = bufferToIndices.get(elementBuffer);
+    const Type = glTypeToTypedArray[indexType];
+    const view = new Type(buffer, startOffset);
+    let maxIndex = view[0];
+    for (let i = 1; i < vertCount; ++i) {
+      maxIndex = Math.max(maxIndex, view[i]);
+    }
+    return maxIndex;
+  }
+
+  const VERTEX_ATTRIB_ARRAY_DIVISOR = 0x88FE;
+
+  function checkAttributes(gl, funcName, args) {
+    const {vertCount, startOffset, indexType, instances} = funcsToArgs[funcName](...args);
+    if (vertCount <=0 || instances <= 0) {
+      return [];
+    }
+    const program = gl.getParameter(gl.CURRENT_PROGRAM);
+    const errors = [];
+    const nonInstancedLastIndex = indexType
+        ? getLastUsedIndexForDrawElements(gl, funcName, startOffset, vertCount, instances, indexType, errors) 
+        : computeLastUseIndexForDrawArrays(startOffset, vertCount, instances, errors);
+    if (errors.length) {
+      return errors;
+    }
+
+    const hasDivisor = isWebGL2(gl) || gl.getExtension('ANGLE_instanced_arrays');
+
+    // get the attributes used by the current program
+    const numAttributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
+    const oldArrayBuffer = gl.getParameter(gl.ARRAY_BUFFER_BINDING);
+    for (let ii = 0; ii < numAttributes; ++ii) {
+      const {name, type} = gl.getActiveAttrib(program, ii);
+      if (isBuiltIn(name)) {
+        continue;
+      }
+      const index = gl.getAttribLocation(program, name);
+      const {size, count} = {count: 1, ...attrTypeMap[type]};
+      for (let jj = 0; jj < count; ++jj) {
+        const ndx = index + jj;
+        const enabled = gl.getVertexAttrib(ndx, gl.VERTEX_ATTRIB_ARRAY_ENABLED);
+        if (!enabled) {
+          continue;
+        }
+        const buffer = gl.getVertexAttrib(ndx, gl.VERTEX_ATTRIB_ARRAY_BUFFER_BINDING);
+        if (!buffer) {
+          errors.push(`no buffer bound to attribute (${name}) location: ${i}`);
+          continue;
+        }
+        const numComponents = gl.getVertexAttrib(ndx, gl.VERTEX_ATTRIB_ARRAY_SIZE);
+        const type = gl.getVertexAttrib(ndx, gl.VERTEX_ATTRIB_ARRAY_TYPE);
+        const bytesPerElement = getBytesPerValueForGLType(type) * numComponents;
+        const offset = gl.getVertexAttribOffset(ndx, gl.VERTEX_ATTRIB_ARRAY_POINTER);
+        const specifiedStride = gl.getVertexAttrib(ndx, gl.VERTEX_ATTRIB_ARRAY_STRIDE);
+        const stride = specifiedStride ? specifiedStride : bytesPerElement;
+        const divisor = hasDivisor
+            ? gl.getVertexAttrib(ndx, VERTEX_ATTRIB_ARRAY_DIVISOR)
+            : 0;
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        const bufferSize = gl.getBufferParameter(gl.ARRAY_BUFFER, gl.BUFFER_SIZE);
+        const effectiveLastIndex = divisor > 0
+            ? ((instances + divisor - 1) / divisor | 0) - 1
+            : nonInstancedLastIndex;
+        const sizeNeeded = offset + effectiveLastIndex * stride + bytesPerElement;
+        if (sizeNeeded > bufferSize) {
+          errors.push(`buffer assigned to attribute ${ndx} used as '${name}' in current program is too small for draw parameters.
+index of highest vertex accessed: ${effectiveLastIndex}
+attribute size: ${numComponents}, type: ${glEnumToString(gl, type)}, stride: ${specifiedStride}, offset: ${offset}, divisor: ${divisor}
+needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${bufferSize} bytes`);
+        }
+      }
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, oldArrayBuffer);
+    return errors;
+  }
+
+  // ---------------------------------
+
+  const SAMPLER_2D                    = 0x8B5E;
+  const SAMPLER_CUBE                  = 0x8B60;
+  const SAMPLER_3D                    = 0x8B5F;
+  const SAMPLER_2D_SHADOW             = 0x8B62;
+  const SAMPLER_2D_ARRAY              = 0x8DC1;
+  const SAMPLER_2D_ARRAY_SHADOW       = 0x8DC4;
+  const SAMPLER_CUBE_SHADOW           = 0x8DC5;
+  const samplers = new Set([
+    SAMPLER_2D,
+    SAMPLER_CUBE,
+    SAMPLER_3D,
+    SAMPLER_2D_SHADOW,
+    SAMPLER_2D_ARRAY,
+    SAMPLER_2D_ARRAY_SHADOW,
+    SAMPLER_CUBE_SHADOW,
+  ]);
+
+  function isSampler(type) {
+    return samplers.has(type);
+  }
+
+  const TEXTURE_BINDING_2D            = 0x8069;
+  const TEXTURE_BINDING_CUBE_MAP      = 0x8514;
+  const TEXTURE_BINDING_3D            = 0x806A;
+  const TEXTURE_BINDING_2D_ARRAY      = 0x8C1D;
+
+  const samplerTypeToBinding = new Map();
+  samplerTypeToBinding.set(SAMPLER_2D, TEXTURE_BINDING_2D);
+  samplerTypeToBinding.set(SAMPLER_2D_SHADOW, TEXTURE_BINDING_2D);
+  samplerTypeToBinding.set(SAMPLER_3D, TEXTURE_BINDING_3D);
+  samplerTypeToBinding.set(SAMPLER_2D_ARRAY, TEXTURE_BINDING_2D_ARRAY);
+  samplerTypeToBinding.set(SAMPLER_2D_ARRAY_SHADOW, TEXTURE_BINDING_2D_ARRAY);
+  samplerTypeToBinding.set(SAMPLER_CUBE, TEXTURE_BINDING_CUBE_MAP);
+  samplerTypeToBinding.set(SAMPLER_CUBE_SHADOW, TEXTURE_BINDING_CUBE_MAP);
+
+  function getTextureForUnit(gl, unit, type) {
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    const binding = samplerTypeToBinding.get(type);
+    return gl.getParameter(binding);
+  }
+
+  /**
+   * slow non-cached version
+   * @param {WebGLRenderingContext} gl
+   * @param {number} attachment
+   * @param {Map<WebGLTexture, [number]>} textureAttachments
+   */
+  function addTextureAttachment(gl, attachment, textureAttachments) {
+    const type = gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, attachment, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE);
+    if (type === gl.NONE) {
+      return;
+    }
+    const obj = gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, attachment, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+    if (obj instanceof WebGLTexture) {
+      if (!textureAttachments.has(obj)) {
+        textureAttachments.set(obj, []);
+      }
+      textureAttachments.get(obj).push(attachment);
+    }
+  }
+
+  const MAX_COLOR_ATTACHMENTS = 0x8CDF;
+
+  function getMaxColorAttachments(gl) {
+    if (!isWebGL2(gl)) {
+      const ext = gl.getExtension('WEBGL_draw_buffers');
+      if (!ext) {
+        return 1;
+      }
+    }
+    return gl.getParameter(MAX_COLOR_ATTACHMENTS);
+  }
+
+  /**
+   * slow non-cached version
+   * @param {WebGLRenderingContext} gl
+   */
+  function checkFramebufferFeedback(gl) {
+    const framebuffer = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+    if (!framebuffer) {
+      // drawing to canvas
+      return [];
+    }
+
+    // get framebuffer texture attachments
+    const maxColorAttachments = getMaxColorAttachments(gl)
+    const textureAttachments = new Map();
+    for (let i = 0; i < maxColorAttachments; ++i) {
+      addTextureAttachment(gl, gl.COLOR_ATTACHMENT0 + i, textureAttachments);
+    }
+    addTextureAttachment(gl, gl.DEPTH_ATTACHMENT, textureAttachments);
+    addTextureAttachment(gl, gl.STENCIL_ATTACHMENT, textureAttachments);
+
+    if (!isWebGL2(gl)) {
+      addTextureAttachment(gl, gl.DEPTH_STENCIL_ATTACHMENT, textureAttachments);
+    }
+
+    const oldActiveTexture = gl.getParameter(gl.ACTIVE_TEXTURE);
+    const program = gl.getParameter(gl.CURRENT_PROGRAM);
+    // get the texture units used by the current program
+    const numUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+    const errors = [];
+    for (let ii = 0; ii < numUniforms; ++ii) {
+      const {name, type, size} = gl.getActiveUniform(program, ii);
+      if (isBuiltIn(name) || !isSampler(type)) {
+        continue;
+      }
+
+      if (size > 1) {
+        let baseName = (name.substr(-3) === "[0]")
+            ? name.substr(0, name.length - 3)
+            : name;
+        for (let t = 0; t < size; ++t) {
+          errors.push(...checkTextureUsage(gl, textureAttachments, program, `${baseName}[${t}]`, type));
+        }
+      } else {
+        errors.push(...checkTextureUsage(gl, textureAttachments, program, name, type));
+      }
+    }
+    gl.activeTexture(oldActiveTexture);
+
+    return errors;
+  }
+
+  function checkTextureUsage(gl, textureAttachments, program, uniformName, uniformType) {
+    const location = gl.getUniformLocation(program, uniformName);
+    const textureUnit = gl.getUniform(program, location);
+    const texture = getTextureForUnit(gl, textureUnit, uniformType);
+    const attachments = textureAttachments.get(texture);
+    return attachments
+       ? [`texture on uniform: ${uniformName} bound to texture unit ${textureUnit} is also attached to current framebuffer on attachment: ${attachments.map(a => glEnumToString(gl, a)).join(', ')}`]
+       : [];
+  }
+
   //------------ [ from https://github.com/KhronosGroup/WebGLDeveloperTools ]
 
   /*
@@ -361,7 +675,7 @@
       }
     }
     return strs.length
-        ? strs.map(v => `gl.${v}`).join(' | ')
+        ? strs.map(v => `${v}`).join(' | ')
         : `/*UNKNOWN WebGL ENUM*/ ${typeof value === 'number' ? `0xvalue.toString(16)` : value}`;
   }
 
@@ -473,7 +787,16 @@
       });
     }
 
-    function checkMaxDrawCalls() {
+    function checkMaxDrawCallsAndZeroCount(gl, funcName, ...args) {
+      const {vertCount, instances} = funcsToArgs[funcName](...args);
+      if (vertCount === 0) {
+        console.warn(`count for ${funcName} is 0!`);
+      }
+
+      if (instances === 0) {
+        console.warn(`instanceCount for ${funcName} is 0!`);
+      }
+
       if (sharedState.numDrawCallsRemaining === 0) {
         removeChecks();
       }
@@ -483,9 +806,61 @@
     function noop() {
     }
 
+    // I know ths is not a full check
+    function isNumber(v) {
+      return typeof v === 'number';
+    }
+
+    const specials = {
+      // WebGL1
+      //   void bufferData(GLenum target, GLsizeiptr size, GLenum usage);
+      //   void bufferData(GLenum target, [AllowShared] BufferSource? srcData, GLenum usage);
+      // WebGL2:
+      //   void bufferData(GLenum target, [AllowShared] ArrayBufferView srcData, GLenum usage, GLuint srcOffset,
+      //                   optional GLuint length = 0);
+      bufferData(gl, funcName, target, src, usage, srcOffset = 0, length = 0) {
+        if (target !== gl.ELEMENT_ARRAY_BUFFER) {
+          return;
+        }
+        const buffer = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);
+        if (isNumber(src)) {
+          bufferToIndices.set(buffer, new ArrayBuffer(src));
+        } else {
+          const isDataView = src instanceof DataView;
+          const copyLength = length ? length : isDataView
+             ? src.byteLength - srcOffset
+             : src.length - srcOffset;
+          const elemSize = isDataView ? 1 : src.BYTES_PER_ELEMENT;
+          const bufSize = copyLength * elemSize;
+          bufferToIndices.set(buffer, src.buffer.slice(srcOffset * elemSize, bufSize));
+        }
+      },
+      // WebGL1
+      //   void bufferSubData(GLenum target, GLintptr dstByteOffset, [AllowShared] BufferSource srcData);
+      // WebGL2
+      //   void bufferSubData(GLenum target, GLintptr dstByteOffset, [AllowShared] ArrayBufferView srcData,
+      //                      GLuint srcOffset, optional GLuint length = 0);
+      bufferSubData(gl, funcName, target, dstByteOffset, src, srcOffset, length = 0) {
+        if (target !== ELEMENT_ARRAY_BUFFER) {
+          return;
+        }
+        const buffer = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);
+        const data = bufferToIndices.get(buffer);
+        const view = new Uint8Array(data);
+        const isDataView = src instanceof DataView;
+        const copyLength = length ? length : isDataView
+           ? src.byteLength - srcOffset
+           : src.length - srcOffset;
+        const elemSize = isDataView ? 1 : src.BYTES_PER_ELEMENT;
+        const copySize = copyLength * elemSize;
+        const newView = new Uint8Array(src.buffer, srcOffset * elemSize, copySize);
+        view.set(newView, dstByteOffset);
+      }
+    }
+
     // Makes a function that calls a WebGL function and then calls getError.
     function makeErrorWrapper(ctx, functionName) {
-      const check = functionName.substring(0, 4) === 'draw' ? checkMaxDrawCalls : noop;
+      const check = functionName.startsWith('draw') ? checkMaxDrawCallsAndZeroCount : (specials[functionName] || noop);
       return function(...args) {
         if (onFunc) {
           onFunc(functionName, args);
@@ -496,7 +871,7 @@
           glErrorShadow[err] = true;
           errorFunc(err, functionName, args);
         }
-        check();
+        check(ctx, functionName, ...args);
         return result;
       };
     }
@@ -662,6 +1037,14 @@
     };
   }();
 
+  function reportError(errorMsg) {
+    const errorInfo = parseStack((new Error()).stack);
+    if (errorInfo) {
+      reportJSError(errorInfo.url, errorInfo.lineNo, errorInfo.colNo, errorMsg);
+    } else {
+      throw new Error(errorMsg)
+    }
+  }
 
   HTMLCanvasElement.prototype.getContext = (function(oldFn) {
     return function(...args) {
@@ -681,13 +1064,18 @@
               }
               return str;
             });
-            const errorMsg = `WebGL error ${glEnumToString(ctx, err)} in gl.${funcName}(${enumedArgs.join(', ')})`;
-            const errorInfo = parseStack((new Error()).stack);
-            if (errorInfo) {
-              reportJSError(errorInfo.url, errorInfo.lineNo, errorInfo.colNo, errorMsg);
-            } else {
-              throw new Error(errorMsg)
+            const msgs = [];
+            if (funcName.startsWith('draw')) {
+              const program = ctx.getParameter(ctx.CURRENT_PROGRAM);
+              if (!program) {
+                msgs.push('no shader program in use!');
+              } else {
+                msgs.push(...checkFramebufferFeedback(ctx));
+                msgs.push(...checkAttributes(ctx, funcName, args));
+              }
             }
+            const errorMsg = `WebGL error ${glEnumToString(ctx, err)} in ${funcName}(${enumedArgs.join(', ')})${msgs.length ? `\n${msgs.join('\n')}` : ''}`;
+            reportError(errorMsg);
           },
         });
       }
