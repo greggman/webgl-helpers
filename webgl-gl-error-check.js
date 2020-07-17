@@ -925,20 +925,9 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     return stringifiedArgs.join(', ');
   }
 
-  function makePropertyWrapper(wrapper, original, propertyName) {
-    wrapper.__defineGetter__(propertyName, function() {  // eslint-disable-line
-      return original[propertyName];
-    });
-    // TODO: this needs to handle properties that take more than
-    // one value?
-    wrapper.__defineSetter__(propertyName, function(value) {  // eslint-disable-line
-      original[propertyName] = value;
-    });
-  }
-
   /**
-   * Given a WebGL context returns a wrapped context that calls
-   * gl.getError after every command and calls a function if the
+   * Given a WebGL context replaces all the functions with wrapped functions
+   * that call gl.getError after every command and calls a function if the
    * result is not gl.NO_ERROR.
    *
    * @param {!WebGLRenderingContext} ctx The webgl context to
@@ -953,9 +942,8 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
    * @param {!WebGLRenderingContext} opt_err_ctx The webgl context
    *        to call getError on if different than ctx.
    */
-  function makeDebugContext(ctx, options) {
-    options = options || {};
-    const errCtx = options.errCtx || ctx;
+  function augmentWebGLContext(ctx, nameOfClass, options = {}) {
+    const origGLErrorFn = options.origGLErrorFn || ctx.getError;
     const onFunc = options.funcFunc;
     const sharedState = options.sharedState || {
       numDrawCallsRemaining: options.maxDrawCalls || -1,
@@ -967,19 +955,12 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     // Holds booleans for each GL error so after we get the error ourselves
     // we can still return it to the client app.
     const glErrorShadow = { };
-    const wrapper = {};
+    const origFuncs = {};
 
     function removeChecks() {
-      Object.keys(sharedState.wrappers).forEach(function(name) {
-        const pair = sharedState.wrappers[name];
-        const wrapper = pair.wrapper;
-        const orig = pair.orig;
-        for (const propertyName in wrapper) {
-          if (typeof wrapper[propertyName] === 'function') {
-            wrapper[propertyName] = orig[propertyName].bind(orig);
-          }
-        }
-      });
+      for (const {ctx, origFuncs} of Object.values(sharedState.wrappers)) {
+        Object.assign(ctx, origFuncs);
+      }
     }
 
     function checkMaxDrawCallsAndZeroCount(gl, funcName, ...args) {
@@ -1061,8 +1042,9 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
 
     // Makes a function that calls a WebGL function and then calls getError.
     function makeErrorWrapper(ctx, functionName) {
+      const origFn = ctx[functionName];
       const check = functionName.startsWith('draw') ? checkMaxDrawCallsAndZeroCount : (specials[functionName] || noop);
-      return function(...args) {
+      ctx[functionName] = function(...args) {
         if (onFunc) {
           onFunc(functionName, args);
         }
@@ -1106,8 +1088,8 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
           }
         }
 
-        const result = ctx[functionName].call(ctx, ...args);
-        const err = errCtx.getError();
+        const result = origFn.call(ctx, ...args);
+        const err = origGLErrorFn.call(ctx);
         if (err !== 0) {
           glErrorShadow[err] = true;
           errorFunc(err, functionName, args);
@@ -1117,41 +1099,38 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       };
     }
 
-    function makeGetExtensionWrapper(ctx, wrapped) {
-      return function(...args) {
+    function makeGetExtensionWrapper(ctx, propertyName, origGLErrorFn) {
+      const origFn = ctx[propertyName];
+      ctx[propertyName] = function(...args) {
         const extensionName = args[0];
         let ext = sharedState.wrappers[extensionName];
         if (!ext) {
-          ext = wrapped.call(ctx, ...args);
+          ext = origFn.call(ctx, ...args);
           if (ext) {
-            const origExt = ext;
-            ext = makeDebugContext(ext, Object.assign({}, options, {errCtx: ctx}));
-            sharedState.wrappers[extensionName] = { wrapper: ext, orig: origExt };
-            addEnumsForContext(origExt, extensionName);
+            augmentWebGLContext(ext, {...options, origGLErrorFn});
+            addEnumsForContext(ext, extensionName);
           }
         }
         return ext;
       };
     }
 
-    // Make a an object that has a copy of every property of the WebGL context
-    // but wraps all functions.
+    // Wrap each function
     for (const propertyName in ctx) {
       if (typeof ctx[propertyName] === 'function') {
+        origFuncs[propertyName] = ctx[propertyName];
         if (propertyName !== 'getExtension') {
-          wrapper[propertyName] = makeErrorWrapper(ctx, propertyName);
+          makeErrorWrapper(ctx, propertyName);
         } else {
-          const wrapped = makeErrorWrapper(ctx, propertyName);
-          wrapper[propertyName] = makeGetExtensionWrapper(ctx, wrapped);
+          makeErrorWrapper(ctx, propertyName);
+          makeGetExtensionWrapper(ctx, propertyName, origGLErrorFn);
         }
-      } else {
-        makePropertyWrapper(wrapper, ctx, propertyName);
       }
     }
 
     // Override the getError function with one that returns our saved results.
-    if (wrapper.getError) {
-      wrapper.getError = function() {
+    if (ctx.getError) {
+      ctx.getError = function() {
         for (const err of Object.keys(glErrorShadow)) {
           if (glErrorShadow[err]) {
             glErrorShadow[err] = false;
@@ -1162,12 +1141,10 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       };
     }
 
-    if (wrapper.bindBuffer) {
-      sharedState.wrappers['webgl'] = { wrapper: wrapper, orig: ctx };
+    sharedState.wrappers[nameOfClass] = { ctx, origFuncs };
+    if (ctx.bindBuffer) {
       addEnumsForContext(ctx, ctx.bindBufferBase ? 'WebGL2' : 'WebGL');
     }
-
-    return wrapper;
   }
 
   // adapted from http://stackoverflow.com/a/2401861/128511
@@ -1290,12 +1267,12 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
   
   function wrapGetContext(Ctor) {
     const oldFn = Ctor.prototype.getContext;
-    Ctor.prototype.getContext = function(...args) {
-      let ctx = oldFn.call(this, ...args);
+    Ctor.prototype.getContext = function(type, ...args) {
+      let ctx = oldFn.call(this, type, ...args);
       // Using bindTexture to see if it's WebGL. Could check for instanceof WebGLRenderingContext
       // but that might fail if wrapped by debugging extension
       if (ctx && ctx.bindTexture) {
-        ctx = makeDebugContext(ctx, {
+        augmentWebGLContext(ctx, type.toLowerCase(), {
           maxDrawCalls: 1000,
           errorFunc: function(err, funcName, args) {
             const stringifiedArgs = glFunctionArgsToString(ctx, funcName, args);
@@ -1318,10 +1295,10 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     };
   };
 
-  if (typeof HTMLCanvasElement !== undefined) {
+  if (typeof HTMLCanvasElement !== "undefined") {
     wrapGetContext(HTMLCanvasElement);
   }
-  if (typeof OffscreenCanvas !== undefined) {
+  if (typeof OffscreenCanvas !== "undefined") {
     wrapGetContext(OffscreenCanvas);
   }
 
