@@ -462,7 +462,8 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
    *       1: { enums: { 0: convertClearBitsToString }},
    *     },
    *
-   * numbers specifies which arguments are numbers
+   * numbers specifies which arguments are numbers, if an argument is negative that
+   * argument might not be a number so we can check only check for NaN 
    * arrays specifies which arguments are arrays
    * 
    * @type {!Object.<number, (!Object.<number, string>|function)}
@@ -826,6 +827,8 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     'getIndexedParameter': { 2: { enums: [0], numbers: [1] }},  // WebGL2
     'getActiveUniforms': { 3: { enums: [2] }, arrays: [1]},  // WebGL2
     'getActiveUniformBlockParameter': { 3: { enums: [2], numbers: [1] }},  // WebGL2
+    'getActiveUniformBlockName': { 2: {numbers: [1]}}, // WebGL2
+    'uniformBlockBinding': { 3: { numbers: [1, 2]}}, // WebGL2
   };
   for (const fnInfos of Object.values(glFunctionInfos)) {
     for (const fnInfo of Object.values(fnInfos)) {
