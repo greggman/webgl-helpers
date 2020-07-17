@@ -169,8 +169,19 @@ or
 import 'https://greggman.github.io/webgl-helpers/webgl-gl-error-check.js';
 ```
 
-Note: that it stops checking after the first 1000 draw calls. If you want it to check more
-then copy it locally and edit.
+The script `throw`s a JavaScript exception when there is an issue so
+if you are using `try`/`catch` to catch errors you might need to print the exceptions inside your catch block.
+You can also turn on "pause on exception" on your JavaScript debugger.
+
+Throwing seemed more a appropriate than just printing an error because if you get an error you should fix it! I tried
+the script out with all the [three.js examples](https://threejs.org/examples). It found one real bug and 3 half bugs. By half bugs I mean there were 3 examples that functioned but were actually passing
+`NaN` or `null` in the wrong places for a few frames. Arguably it's
+better to fix those so that you can continue to use the helper to
+find real errors. In any case the 360 of 364 examples ran without
+error so you can do it too! 😉
+
+Note: that it stops checking after the first 1000 draw calls. This
+is so hopefully there is no perf it after a few seconds. If you want it to check more or less then copy it locally and edit.
 
 ### Naming your WebGL objects (buffers, textures, programs, etc..)
 
