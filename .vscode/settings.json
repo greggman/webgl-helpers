@@ -1,0 +1,20 @@
+{
+  "cSpell.words": [
+    "Bufferfi",
+    "Bufferfv",
+    "Bufferiv",
+    "Bufferuiv",
+    "Framebuffer",
+    "GMAN",
+    "Multisample",
+    "Renderbuffer",
+    "Renderbuffers",
+    "emscripten",
+    "minmax",
+    "phong",
+    "powerpreference",
+    "premultipliedalpha",
+    "preservedrawingbuffer",
+    "webgl"
+  ]
+}
