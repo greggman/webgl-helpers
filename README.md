@@ -150,8 +150,11 @@ and you want it to be something other than the default.
 
 ## webgl-gl-error-check.js
 
-Calls `getError` after every function and throws if there was an error. Also tries to provide
-more info about why, for example framebuffer feedback issues, access out of range issues, ...
+Calls `getError` after every function and throws if there was an error. It checks that
+no arguments to any functions are `undefined`. Pass `0` or `false` where you mean `0` or `false`.
+It checks that no numbers or values in arrays of numbers are `NaN`. If there is a WebGL error
+it tries to provide more info about why, for example framebuffer feedback issues, 
+access out of range issues, ...
 
 * [without script](https://greggman.github.io/webgl-helpers/examples/error-without-helper.html)
 * [with script](https://greggman.github.io/webgl-helpers/examples/error-with-helper.html)
@@ -159,6 +162,15 @@ more info about why, for example framebuffer feedback issues, access out of rang
 ```
 <script src="https://greggman.github.io/webgl-helpers/webgl-gl-error-check.js"></script>
 ```
+
+or 
+
+```
+import 'https://greggman.github.io/webgl-helpers/webgl-gl-error-check.js';
+```
+
+Note: that it stops checking after the first 1000 draw calls. If you want it to check more
+then copy it locally and edit.
 
 # Why?
 

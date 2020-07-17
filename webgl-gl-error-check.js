@@ -229,7 +229,7 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     SAMPLER_2D_ARRAY,
     SAMPLER_2D_ARRAY_SHADOW,
     SAMPLER_CUBE_SHADOW,
-  ]);
+ ]);
 
   function isSampler(type) {
     return samplers.has(type);
@@ -442,221 +442,408 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     'COLOR_BUFFER_BIT',
     'DEPTH_BUFFER_BIT',
     'STENCIL_BUFFER_BIT',
-  ]);
+ ]);
 
   /**
-   * Which arguments are enums based on the number of arguments to the function.
-   * So
+   * Info about functions based on the number of arguments to the function.
+   * 
+   * enums specifies which arguments are enums
+   * 
    *    'texImage2D': {
-   *       9: { 0:true, 2:true, 6:true, 7:true },
-   *       6: { 0:true, 2:true, 3:true, 4:true },
+   *       9: { enums: [0, 2, 6, 7 ] },
+   *       6: { enums: [0, 2, 3, 4 ] },
    *    },
    *
    * means if there are 9 arguments then 6 and 7 are enums, if there are 6
-   * arguments 3 and 4 are enums. Maybe a function as well in which case
-   * value is passed to function and returns a string
+   * arguments 3 and 4 are enums. You can provide a function instead in
+   * which case you should use object format. For example
+   * 
+   *     `clear`: {
+   *       1: { enums: { 0: convertClearBitsToString }},
+   *     },
    *
+   * numbers specifies which arguments are numbers
+   * arrays specifies which arguments are arrays
+   * 
    * @type {!Object.<number, (!Object.<number, string>|function)}
    */
-  const glValidEnumContexts = {
+  const glFunctionInfos = {
     // Generic setters and getters
 
-    'enable': {1: { 0:true }},
-    'disable': {1: { 0:true }},
-    'getParameter': {1: { 0:true }},
+    'enable': {1: { enums: [0] }},
+    'disable': {1: { enums: [0] }},
+    'getParameter': {1: { enums: [0] }},
 
     // Rendering
 
-    'drawArrays': {3:{ 0:true }},
-    'drawElements': {4:{ 0:true, 2:true }},
-    'drawArraysInstanced': {4: { 0:true }},
-    'drawElementsInstanced': {5: {0:true, 2: true }},
-    'drawRangeElements': {6: {0:true, 4: true }},
+    'drawArrays': {3:{ enums: [0], numbers: [1, 2] }},
+    'drawElements': {4:{ enums: [0, 2], numbers: [1, 3] }},
+    'drawArraysInstanced': {4: { enums: [0], numbers: [1, 2, 3] }},
+    'drawElementsInstanced': {5: { enums: [0, 2], numbers: [1, 3, 4] }},
+    'drawRangeElements': {6: { enums: [0, 4], numbers: [1, 2, 3, 5] }},
 
     // Shaders
 
-    'createShader': {1: { 0:true }},
-    'getShaderParameter': {2: { 1:true }},
-    'getProgramParameter': {2: { 1:true }},
-    'getShaderPrecisionFormat': {2: { 0: true, 1:true }},
+    'createShader': {1: { enums: [0] }},
+    'getActiveAttrib': {2: { numbers: [1] }},
+    'getActiveUniform': {2: { numbers: [1] }},
+    'getShaderParameter': {2: { enums: [1] }},
+    'getProgramParameter': {2: { enums: [1] }},
+    'getShaderPrecisionFormat': {2: { enums: [0, 1] }},
+    'bindAttribLocation': {3: {numbers: [1]}},
 
     // Vertex attributes
 
-    'getVertexAttrib': {2: { 1:true }},
-    'vertexAttribPointer': {6: { 2:true }},
-    'vertexAttribIPointer': {5: { 2:true }},  // WebGL2
+    'getVertexAttrib': {2: { enums: [1], numbers: [0] }},
+    'vertexAttribPointer': {6: { enums: [2], numbers: [0, 1, 4, 5] }},
+    'vertexAttribIPointer': {5: { enums: [2], numbers: [0, 1, 3, 4] }},  // WebGL2
+    'vertexAttribDivisor': {2: { numbers: [0, 1] }}, // WebGL2
+    'disableVertexAttribArray': {1: {numbers: [0] }},
+    'enableVertexAttribArray': {1: {numbers: [0] }},
 
     // Textures
 
-    'bindTexture': {2: { 0:true }},
-    'activeTexture': {1: { 0:true }},
-    'getTexParameter': {2: { 0:true, 1:true }},
-    'texParameterf': {3: { 0:true, 1:true }},
-    'texParameteri': {3: { 0:true, 1:true, 2:true }},
+    'bindTexture': {2: { enums: [0] }},
+    'activeTexture': {1: { enums: [0, 1] }},
+    'getTexParameter': {2: { enums: [0, 1] }},
+    'texParameterf': {3: { enums: [0, 1] }},
+    'texParameteri': {3: { enums: [0, 1, 2] }},
     'texImage2D': {
-      9: { 0:true, 2:true, 6:true, 7:true },
-      6: { 0:true, 2:true, 3:true, 4:true },
-      10: { 0:true, 2:true, 6:true, 7:true },  // WebGL2
+      9: { enums: [0, 2, 6, 7], numbers: [1, 3, 4, 5] },
+      6: { enums: [0, 2, 3, 4] },
+      10: { enums: [0, 2, 6, 7], numbers: [1, 3, 4, 5, 9] }, // WebGL2
     },
     'texImage3D': {
-      10: { 0:true, 2:true, 7:true, 8:true },  // WebGL2
-      11: { 0:true, 2:true, 7:true, 8:true },  // WebGL2
+      10: { enums: [0, 2, 7, 8], numbers: [1, 3, 4, 5] },  // WebGL2
+      11: { enums: [0, 2, 7, 8], numbers: [1, 3, 4, 5, 10] },  // WebGL2
     },
     'texSubImage2D': {
-      9: { 0:true, 6:true, 7:true },
-      7: { 0:true, 4:true, 5:true },
-      10: { 0:true, 6:true, 7:true },  // WebGL2
+      9: { enums: [0, 6, 7], numbers: [1, 2, 3, 4, 5] },
+      7: { enums: [0, 4, 5], numbers: [1, 2, 3] },
+      10: { enums: [0, 6, 7], numbers: [1, 2, 3, 4, 5, 9] },  // WebGL2
     },
     'texSubImage3D': {
-      11: { 0:true, 8:true, 9:true },  // WebGL2
-      12: { 0:true, 8:true, 9:true },  // WebGL2
+      11: { enums: [0, 8, 9], numbers: [1, 2, 3, 4, 5, 6, 7] },  // WebGL2
+      12: { enums: [0, 8, 9], numbers: [1, 2, 3, 4, 5, 6, 7, 11] },  // WebGL2
     },
-    'texStorage2D': { 5: { 0:true, 2:true }},  // WebGL2
-    'texStorage3D': { 6: { 0:true, 2:true }},  // WebGL2
-    'copyTexImage2D': {8: { 0:true, 2:true }},
-    'copyTexSubImage2D': {8: { 0:true }},
-    'copyTexSubImage3D': {9: { 0:true }},  // WebGL2
-    'generateMipmap': {1: { 0:true }},
+    'texStorage2D': { 5: { enums: [0, 2], numbers: [1, 3, 4] }},  // WebGL2
+    'texStorage3D': { 6: { enums: [0, 2], numbers: [1, 3, 4, 6] }},  // WebGL2
+    'copyTexImage2D': {8: { enums: [0, 2], numbers: [1, 3, 4, 5, 6, 7] }},
+    'copyTexSubImage2D': {8: { enums: [0], numbers: [1, 2, 3, 4, 5, 6, 7]}},
+    'copyTexSubImage3D': {9: { enums: [0], numbers: [1, 2, 3, 4, 5, 6, 7, 8] }},  // WebGL2
+    'generateMipmap': {1: { enums: [0] }},
     'compressedTexImage2D': {
-      7: { 0: true, 2:true },
-      8: { 0: true, 2:true },  // WebGL2
+      7: { enums: [0, 2], numbers: [1, 3, 4, 5] },
+      8: { enums: [0, 2], numbers: [1, 3, 4, 5, 7] },  // WebGL2
     },
     'compressedTexSubImage2D': {
-      8: { 0: true, 6:true },
-      9: { 0: true, 6:true },  // WebGL2
+      8: { enums: [0, 6], numbers: [1, 2, 3, 4, 5] },
+      9: { enums: [0, 6], numbers: [1, 2, 3, 4, 5, 8] },  // WebGL2
     },
     'compressedTexImage3D': {
-      8: { 0: true, 2: true, },  // WebGL2
-      9: { 0: true, 2: true, },  // WebGL2
+      8: { enums: [0, 2], numbers: [1, 3, 4, 5, 6] },  // WebGL2
+      9: { enums: [0, 2], numbers: [1, 3, 4, 5, 6, -7, 8] },  // WebGL2
+      10: { enums: [0, 2], numbers: [1, 3, 4, 5, 6, 8, 9] },  // WebGL2
     },
     'compressedTexSubImage3D': {
-      9: { 0: true, 8: true, },  // WebGL2
-      10: { 0: true, 8: true, },  // WebGL2
+      12: { enums: [0, 8], numbers: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11] },  // WebGL2
+      11: { enums: [0, 8], numbers: [1, 2, 3, 4, 5, 6, 7, 8, -9, 10] },  // WebGL2
+      10: { enums: [0, 8], numbers: [1, 2, 3, 4, 5, 6, 7, 8] },  // WebGL2
     },
 
     // Buffer objects
 
-    'bindBuffer': {2: { 0:true }},
+    'bindBuffer': {2: { enums: [0] }},
     'bufferData': {
-      3: { 0:true, 2:true },
-      4: { 0:true, 2:true },  // WebGL2
-      5: { 0:true, 2:true },  // WebGL2
+      3: { enums: [0, 2], numbers: [-1] },
+      4: { enums: [0, 2], numbers: [-1, 3] },  // WebGL2
+      5: { enums: [0, 2], numbers: [-1, 3, 4] },  // WebGL2
     },
     'bufferSubData': {
-      3: { 0:true },
-      4: { 0:true },  // WebGL2
-      5: { 0:true },  // WebGL2
+      3: { enums: [0], numbers: [1] },
+      4: { enums: [0], numbers: [1, 3] },  // WebGL2
+      5: { enums: [0], numbers: [1, 3, 4] },  // WebGL2
     },
     'copyBufferSubData': {
-      5: { 0:true },  // WeBGL2
+      5: { enums: [0], numbers: [2, 3, 4] },  // WeBGL2
     },
-    'getBufferParameter': {2: { 0:true, 1:true }},
+    'getBufferParameter': {2: { enums: [0, 1] }},
     'getBufferSubData': {
-      3: { 0: true, },  // WebGL2
-      4: { 0: true, },  // WebGL2
-      5: { 0: true, },  // WebGL2
+      3: { enums: [0], numbers: [1] },  // WebGL2
+      4: { enums: [0], numbers: [1, 3] },  // WebGL2
+      5: { enums: [0], numbers: [1, 3, 4] },  // WebGL2
     },
 
     // Renderbuffers and framebuffers
 
-    'pixelStorei': {2: { 0:true, 1:true }},
+    'pixelStorei': {2: { enums: [0, 1], numbers: [1] }},
     'readPixels': {
-      7: { 4:true, 5:true },
-      8: { 4:true, 5:true },  // WebGL2
+      7: { enums: [4, 5], numbers: [0, 1, 2, 3, -6] },
+      8: { enums: [4, 5], numbers: [0, 1, 2, 3, 7] },  // WebGL2
     },
-    'bindRenderbuffer': {2: { 0:true }},
-    'bindFramebuffer': {2: { 0:true }},
-    'blitFramebuffer': {10: { 8: destBufferBitFieldToString, 9:true }},  // WebGL2
-    'checkFramebufferStatus': {1: { 0:true }},
-    'framebufferRenderbuffer': {4: { 0:true, 1:true, 2:true }},
-    'framebufferTexture2D': {5: { 0:true, 1:true, 2:true }},
-    'framebufferTextureLayer': {5: {0:true, 1:true }},  // WebGL2
-    'getFramebufferAttachmentParameter': {3: { 0:true, 1:true, 2:true }},
-    'getInternalformatParameter': {3: {0:true, 1:true, 2:true }},  // WebGL2
-    'getRenderbufferParameter': {2: { 0:true, 1:true }},
-    'invalidateFramebuffer': {2: { 0:true, 1: enumArrayToString, }},  // WebGL2
-    'invalidateSubFramebuffer': {6: {0: true, 1: enumArrayToString, }},  // WebGL2
-    'readBuffer': {1: {0: true}},  // WebGL2
-    'renderbufferStorage': {4: { 0:true, 1:true }},
-    'renderbufferStorageMultisample': {5: { 0: true, 2: true }},  // WebGL2
+    'bindRenderbuffer': {2: { enums: [0] }},
+    'bindFramebuffer': {2: { enums: [0] }},
+    'blitFramebuffer': {10: { enums: { 8: destBufferBitFieldToString, 9:true }, numbers: [0, 1, 2, 3, 4, 5, 6, 7]}},  // WebGL2
+    'checkFramebufferStatus': {1: { enums: [0] }},
+    'framebufferRenderbuffer': {4: { enums: [0, 1, 2], }},
+    'framebufferTexture2D': {5: { enums: [0, 1, 2], numbers: [4] }},
+    'framebufferTextureLayer': {5: { enums: [0, 1], numbers: [3, 4] }},  // WebGL2
+    'getFramebufferAttachmentParameter': {3: { enums: [0, 1, 2] }},
+    'getInternalformatParameter': {3: { enums: [0, 1, 2] }},  // WebGL2
+    'getRenderbufferParameter': {2: { enums: [0, 1] }},
+    'invalidateFramebuffer': {2: { enums: { 0: true, 1: enumArrayToString, } }},  // WebGL2
+    'invalidateSubFramebuffer': {6: { enums: { 0: true, 1: enumArrayToString, }, numbers: [2, 3, 4, 5] }},  // WebGL2
+    'readBuffer': {1: { enums: [0] }},  // WebGL2
+    'renderbufferStorage': {4: { enums: [0, 1], numbers: [2, 3] }},
+    'renderbufferStorageMultisample': {5: { enums: [0, 2], numbers: [1, 3, 4] }},  // WebGL2
 
     // Frame buffer operations (clear, blend, depth test, stencil)
 
-    'clear': {1: { 0: destBufferBitFieldToString }},
-    'depthFunc': {1: { 0:true }},
-    'blendFunc': {2: { 0:true, 1:true }},
-    'blendFuncSeparate': {4: { 0:true, 1:true, 2:true, 3:true }},
-    'blendEquation': {1: { 0:true }},
-    'blendEquationSeparate': {2: { 0:true, 1:true }},
-    'stencilFunc': {3: { 0:true }},
-    'stencilFuncSeparate': {4: { 0:true, 1:true }},
-    'stencilMaskSeparate': {2: { 0:true }},
-    'stencilOp': {3: { 0:true, 1:true, 2:true }},
-    'stencilOpSeparate': {4: { 0:true, 1:true, 2:true, 3:true }},
+    'lineWidth': {1: {numbers: [0]}},
+    'polygonOffset': {2: {numbers: [0, 1]}},
+    'scissor': {4: { numbers: [0, 1, 2, 3]}},
+    'viewport': {4: { numbers: [0, 1, 2, 3]}},
+    'clear': {1: { enums: { 0: destBufferBitFieldToString } }},
+    'clearColor': {4: { numbers: [0, 1, 2, 3]}},
+    'clearDepth': {1: { numbers: [0]}},
+    'clearStencil': {1: { numbers: [0]}},
+    'depthFunc': {1: { enums: [0] }},
+    'depthRange': {2: { numbers: [0, 1]}},
+    'blendColor': {4: { numbers: [0, 1, 2, 3]}},
+    'blendFunc': {2: { enums: [0, 1] }},
+    'blendFuncSeparate': {4: { enums: [0, 1, 2, 3] }},
+    'blendEquation': {1: { enums: [0] }},
+    'blendEquationSeparate': {2: { enums: [0, 1] }},
+    'stencilFunc': {3: { enums: [0], numbers: [1, 2] }},
+    'stencilFuncSeparate': {4: { enums: [0, 1], numberS: [2, 3] }},
+    'stencilMask': {1: { numbers: [0] }},
+    'stencilMaskSeparate': {2: { enums: [0], numbers: [1] }},
+    'stencilOp': {3: { enums: [0, 1, 2] }},
+    'stencilOpSeparate': {4: { enums: [0, 1, 2, 3] }},
 
     // Culling
 
-    'cullFace': {1: { 0:true }},
-    'frontFace': {1: { 0:true }},
+    'cullFace': {1: { enums: [0] }},
+    'frontFace': {1: { enums: [0] }},
 
     // ANGLE_instanced_arrays extension
 
-    'drawArraysInstancedANGLE': {4: { 0:true }},
-    'drawElementsInstancedANGLE': {5: { 0:true, 2:true }},
+    'drawArraysInstancedANGLE': {4: { enums: [0], numbers: [1, 2, 3] }},
+    'drawElementsInstancedANGLE': {5: { enums: [0, 2], numbers: [1, 3, 4] }},
 
     // EXT_blend_minmax extension
 
-    'blendEquationEXT': {1: { 0:true }},
+    'blendEquationEXT': {1: { enums: [0] }},
 
     // Multiple Render Targets
 
-    'drawBuffersWebGL': {1: {0: enumArrayToString, }},  // WEBGL_draw_bufers
-    'drawBuffers': {1: {0: enumArrayToString, }},  // WebGL2
+    'drawBuffersWebGL': {1: { enums: { 0: enumArrayToString, }, arrays: [0] }},  // WEBGL_draw_buffers
+    'drawBuffers': {1: { enums: { 0: enumArrayToString, }, arrays: [0] }},  // WebGL2
     'clearBufferfv': {
-      4: {0: true },  // WebGL2
-      5: {0: true },  // WebGL2
+      3: { enums: [0], numbers: [1], arrays: [2] },  // WebGL2
+      4: { enums: [0], numbers: [1, 2], arrays: [2] },  // WebGL2
     },
     'clearBufferiv': {
-      4: {0: true },  // WebGL2
-      5: {0: true },  // WebGL2
+      3: { enums: [0], numbers: [1], arrays: [2] },  // WebGL2
+      4: { enums: [0], numbers: [1, 2], arrays: [2] },  // WebGL2
     },
     'clearBufferuiv': {
-      4: {0: true },  // WebGL2
-      5: {0: true },  // WebGL2
+      3: { enums: [0], numbers: [1], arrays: [2] },  // WebGL2
+      4: { enums: [0], numbers: [1, 2], arrays: [2] },  // WebGL2
     },
-    'clearBufferfi': { 4: {0: true}},  // WebGL2
+    'clearBufferfi': { 4: { enums: [0], numbers: [1, 2, 3] }},  // WebGL2
+
+    // uniform value setters
+    'uniform1f': { 2: {numbers: [1]} },
+    'uniform2f': { 3: {numbers: [1, 2]} },
+    'uniform3f': { 4: {numbers: [1, 2, 3]} },
+    'uniform4f': { 5: {numbers: [1, 2, 3, 4]} },
+
+    'uniform1i': { 2: {numbers: [1]} },
+    'uniform2i': { 3: {numbers: [1, 2]} },
+    'uniform3i': { 4: {numbers: [1, 2, 3]} },
+    'uniform4i': { 5: {numbers: [1, 2, 3, 4]} },
+
+    'uniform1fv': {
+      2: {arrays: [1]},
+      3: {arrays: [1], numbers: [2]},
+      4: {arrays: [1], numbers: [2, 3]},
+    },
+    'uniform2fv': {
+      2: {arrays: [1]},
+      3: {arrays: [1], numbers: [2]},
+      4: {arrays: [1], numbers: [2, 3]},
+    },
+    'uniform3fv': {
+      2: {arrays: [1]},
+      3: {arrays: [1], numbers: [2]},
+      4: {arrays: [1], numbers: [2, 3]},
+    },
+    'uniform4fv': {
+      2: {arrays: [1]},
+      3: {arrays: [1], numbers: [2]},
+      4: {arrays: [1], numbers: [2, 3]},
+    },
+
+    'uniform1iv': {
+      2: {arrays: [1]},
+      3: {arrays: [1], numbers: [2]},
+      4: {arrays: [1], numbers: [2, 3]},
+    },
+    'uniform2iv': {
+      2: {arrays: [1]},
+      3: {arrays: [1], numbers: [2]},
+      4: {arrays: [1], numbers: [2, 3]},
+    },
+    'uniform3iv': {
+      2: {arrays: [1]},
+      3: {arrays: [1], numbers: [2]},
+      4: {arrays: [1], numbers: [2, 3]},
+    },
+    'uniform4iv': {
+      2: {arrays: [1]},
+      3: {arrays: [1], numbers: [2]},
+      4: {arrays: [1], numbers: [2, 3]},
+    },
+
+    'uniformMatrix2fv': {
+      3: {arrays: [2]},
+      4: {arrays: [2], numbers: [3]},
+      5: {arrays: [2], numbers: [3, 4]},
+    },
+    'uniformMatrix3fv': {
+      3: {arrays: [2]},
+      4: {arrays: [2], numbers: [3]},
+      5: {arrays: [2], numbers: [3, 4]},
+    },
+    'uniformMatrix4fv': {
+      3: {arrays: [2]},
+      4: {arrays: [2], numbers: [3]},
+      5: {arrays: [2], numbers: [3, 4]},
+    },
+
+    'uniform1ui': { 2: {numbers: [1]} },  // WebGL2
+    'uniform2ui': { 3: {numbers: [1, 2]} },  // WebGL2
+    'uniform3ui': { 4: {numbers: [1, 2, 3]} },  // WebGL2
+    'uniform4ui': { 5: {numbers: [1, 2, 3, 4]} },  // WebGL2
+
+    'uniform1uiv': {  // WebGL2
+      2: { arrays: [1], },
+      3: { arrays: [1], numbers: [2] },
+      4: { arrays: [1], numbers: [2, 3] },
+    },
+    'uniform2uiv': {  // WebGL2
+      2: { arrays: [1], },
+      3: { arrays: [1], numbers: [2] },
+      4: { arrays: [1], numbers: [2, 3] },
+    },
+    'uniform3uiv': {  // WebGL2
+      2: { arrays: [1], },
+      3: { arrays: [1], numbers: [2] },
+      4: { arrays: [1], numbers: [2, 3] },
+    },
+    'uniform4uiv': {  // WebGL2
+      2: { arrays: [1], },
+      3: { arrays: [1], numbers: [2] },
+      4: { arrays: [1], numbers: [2, 3] },
+    },
+    'uniformMatrix3x2fv': {  // WebGL2
+      3: { arrays: [2], },
+      4: { arrays: [3], numbers: [3] },
+      5: { arrays: [4], numbers: [3, 4] },
+    },
+    'uniformMatrix4x2fv': {  // WebGL2
+      3: { arrays: [2], },
+      4: { arrays: [3], numbers: [3] },
+      5: { arrays: [4], numbers: [3, 4] },
+    },
+
+    'uniformMatrix2x3fv': {  // WebGL2
+      3: { arrays: [2], },
+      4: { arrays: [3], numbers: [3] },
+      5: { arrays: [4], numbers: [3, 4] },
+    },
+    'uniformMatrix4x3fv': {  // WebGL2
+      3: { arrays: [2], },
+      4: { arrays: [3], numbers: [3] },
+      5: { arrays: [4], numbers: [3, 4] },
+    },
+
+    'uniformMatrix2x4fv': {  // WebGL2
+      3: { arrays: [2], },
+      4: { arrays: [3], numbers: [3] },
+      5: { arrays: [4], numbers: [3, 4] },
+    },
+    'uniformMatrix3x4fv': {  // WebGL2
+      3: { arrays: [2], },
+      4: { arrays: [3], numbers: [3] },
+      5: { arrays: [4], numbers: [3, 4] },
+    },
+
+    // attribute value setters
+    'vertexAttrib1f': { 2: {numbers: [0, 1]}},
+    'vertexAttrib2f': { 3: {numbers: [0, 1, 2]}},
+    'vertexAttrib3f': { 4: {numbers: [0, 1, 2, 3]}},
+    'vertexAttrib4f': { 5: {numbers: [0, 1, 2, 3, 4]}},
+
+    'vertexAttrib1fv': { 2: {numbers: [0], arrays: [1]}},
+    'vertexAttrib2fv': { 2: {numbers: [0], arrays: [1]}},
+    'vertexAttrib3fv': { 2: {numbers: [0], arrays: [1]}},
+    'vertexAttrib4fv': { 2: {numbers: [0], arrays: [1]}},
+
+    'vertexAttribI4i': { 5: {numbers: [0, 1, 2, 3, 4]}},  // WebGL2
+    'vertexAttribI4iv': {2: {numbers: [0], arrays: [1]}},  // WebGL2
+    'vertexAttribI4ui': {5: {numbers: [0, 1, 2, 3, 4]}},  // WebGL2
+    'vertexAttribI4uiv': {2: {numbers: [0], arrays: [1]}},  // WebGL2
 
     // QueryObjects
 
-    'beginQuery': { 2: { 0: true }},  // WebGL2
-    'endQuery': { 1: { 0: true }},  // WebGL2
-    'getQuery': { 2: { 0: true, 1: true }},  // WebGL2
-    'getQueryParameter': { 2: { 1: true }},  // WebGL2
+    'beginQuery': { 2: { enums: [0] }},  // WebGL2
+    'endQuery': { 1: { enums: [0] }},  // WebGL2
+    'getQuery': { 2: { enums: [0, 1] }},  // WebGL2
+    'getQueryParameter': { 2: { enums: [1] }},  // WebGL2
 
     //  Sampler Objects
 
-    'samplerParameteri': { 3: { 1: true }},  // WebGL2
-    'samplerParameterf': { 3: { 1: true }},  // WebGL2
-    'getSamplerParameter': { 2: { 1: true }},  // WebGL2
+    'samplerParameteri': { 3: { enums: [1] }},  // WebGL2
+    'samplerParameterf': { 3: { enums: [1] }},  // WebGL2
+    'getSamplerParameter': { 2: { enums: [1] }},  // WebGL2
 
     //  Sync objects
 
-    'clientWaitSync': { 3: { 1: makeBitFieldToStringFunc(['SYNC_FLUSH_COMMANDS_BIT']) }},  // WebGL2
-    'fenceSync': { 2: { 0: true }},  // WebGL2
-    'getSyncParameter': { 2: { 1: true }},  // WebGL2
+    'clientWaitSync': { 3: { enums: { 1: makeBitFieldToStringFunc(['SYNC_FLUSH_COMMANDS_BIT']) }, numbers: [2] }},  // WebGL2
+    'fenceSync': { 2: { enums: [0] }},  // WebGL2
+    'getSyncParameter': { 2: { enums: [1] }},  // WebGL2
 
     //  Transform Feedback
 
-    'bindTransformFeedback': { 2: { 0: true }},  // WebGL2
-    'beginTransformFeedback': { 1: { 0: true }},  // WebGL2
+    'bindTransformFeedback': { 2: { enums: [0] }},  // WebGL2
+    'beginTransformFeedback': { 1: { enums: [0] }},  // WebGL2
 
     // Uniform Buffer Objects and Transform Feedback Buffers
-    'bindBufferBase': { 3: { 0: true }},  // WebGL2
-    'bindBufferRange': { 5: { 0: true }},  // WebGL2
-    'getIndexedParameter': { 2: { 0: true }},  // WebGL2
-    'getActiveUniforms': { 3: { 2: true }},  // WebGL2
-    'getActiveUniformBlockParameter': { 3: { 2: true }},  // WebGL2
+    'bindBufferBase': { 3: { enums: [0] }, numbers: [1]},  // WebGL2
+    'bindBufferRange': { 5: { enums: [0] }, numbers: [1, 3, 4]},  // WebGL2
+    'getIndexedParameter': { 2: { enums: [0], numbers: [1] }},  // WebGL2
+    'getActiveUniforms': { 3: { enums: [2] }, arrays: [1]},  // WebGL2
+    'getActiveUniformBlockParameter': { 3: { enums: [2], numbers: [1] }},  // WebGL2
   };
+  for (const fnInfos of Object.values(glFunctionInfos)) {
+    for (const fnInfo of Object.values(fnInfos)) {
+      convertToObjectIfArray(fnInfo, 'enums');
+      convertToObjectIfArray(fnInfo, 'numbers');
+      convertToObjectIfArray(fnInfo, 'arrays');
+    }
+  }
+
+  function convertToObjectIfArray(obj, key) {
+    if (Array.isArray(obj[key])) {
+      obj[key] = Object.fromEntries(obj[key].map(ndx => [Math.abs(ndx), ndx]));
+    }
+  }
+
+  function isTypedArray(v) {
+    return v.buffer && v.buffer instanceof ArrayBuffer;
+  }
 
   /**
    * Gets an string version of an WebGL enum.
@@ -668,15 +855,15 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
    * @return {string} The string version of the enum.
    */
   function glEnumToString(gl, value) {
-    const strs = [];
+    const matches = [];
     for (let key in gl) {
       if (gl[key] === value) {
-        strs.push(key);
+        matches.push(key);
       }
     }
-    return strs.length
-        ? strs.map(v => `${v}`).join(' | ')
-        : `/*UNKNOWN WebGL ENUM*/ ${typeof value === 'number' ? `0xvalue.toString(16)` : value}`;
+    return matches.length
+        ? matches.map(v => `${v}`).join(' | ')
+        : `/*UNKNOWN WebGL ENUM*/ ${typeof value === 'number' ? `0x${value.toString(16)}` : value}`;
   }
 
   /**
@@ -689,16 +876,19 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
    * @return {string} The value as a string.
    */
   function glFunctionArgToString(gl, functionName, numArgs, argumentIndex, value) {
-    const funcInfos = glValidEnumContexts[functionName];
+    const funcInfos = glFunctionInfos[functionName];
     if (funcInfos !== undefined) {
       const funcInfo = funcInfos[numArgs];
       if (funcInfo !== undefined) {
-        const argType = funcInfo[argumentIndex];
-        if (argType) {
-          if (typeof argType === 'function') {
-            return argType(gl, value);
-          } else {
-            return glEnumToString(gl, value);
+        const argTypes = funcInfo.enums;
+        if (argTypes) {
+          const argType = argTypes[argumentIndex];
+          if (argType !== undefined) {
+            if (typeof argType === 'function') {
+              return argType(gl, value);
+            } else {
+              return glEnumToString(gl, value);
+            }
           }
         }
       }
@@ -707,6 +897,8 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       return 'null';
     } else if (value === undefined) {
       return 'undefined';
+    } else if (Array.isArray(value) || isTypedArray(value)) {
+      return `[${Array.from(value.slice(0, 32)).join(', ')}]`;
     } else {
       return value.toString();
     }
@@ -720,21 +912,24 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
    * @param {number} args The arguments.
    * @return {string} The arguments as a string.
    */
-  function glFunctionArgsToString(gl, functionName, args) {
-    // apparently we can't do args.join(",");
-    const argStrs = [];
+  function glFunctionArgsToString(ctx, funcName, args) {
     const numArgs = args.length;
-    for (let ii = 0; ii < numArgs; ++ii) {
-      argStrs.push(glFunctionArgToString(gl, functionName, numArgs, ii, args[ii]));
-    }
-    return argStrs.join(', ');
+    const stringifiedArgs = args.map(function(arg, ndx) {
+      let str = glFunctionArgToString(ctx, funcName, numArgs, ndx, arg);
+      // shorten because of long arrays
+      if (str.length > 200) {
+        str = str.substring(0, 200) + '...';
+      }
+      return str;
+    });
+    return stringifiedArgs.join(', ');
   }
 
   function makePropertyWrapper(wrapper, original, propertyName) {
     wrapper.__defineGetter__(propertyName, function() {  // eslint-disable-line
       return original[propertyName];
     });
-    // TODO(gmane): this needs to handle properties that take more than
+    // TODO: this needs to handle properties that take more than
     // one value?
     wrapper.__defineSetter__(propertyName, function(value) {  // eslint-disable-line
       original[propertyName] = value;
@@ -841,7 +1036,7 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       //   void bufferSubData(GLenum target, GLintptr dstByteOffset, [AllowShared] ArrayBufferView srcData,
       //                      GLuint srcOffset, optional GLuint length = 0);
       bufferSubData(gl, funcName, target, dstByteOffset, src, srcOffset, length = 0) {
-        if (target !== ELEMENT_ARRAY_BUFFER) {
+        if (target !== gl.ELEMENT_ARRAY_BUFFER) {
           return;
         }
         const buffer = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);
@@ -858,6 +1053,12 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       }
     }
 
+    function reportFunctionError(ctx, funcName, args, msg) {
+      const stringifiedArgs = glFunctionArgsToString(ctx, funcName, args);
+      const errorMsg = `error in ${funcName}(${stringifiedArgs}): ${msg}`;
+      reportError(errorMsg);
+    }
+
     // Makes a function that calls a WebGL function and then calls getError.
     function makeErrorWrapper(ctx, functionName) {
       const check = functionName.startsWith('draw') ? checkMaxDrawCallsAndZeroCount : (specials[functionName] || noop);
@@ -865,6 +1066,46 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
         if (onFunc) {
           onFunc(functionName, args);
         }
+
+        const functionInfos = glFunctionInfos[functionName];
+        if (functionInfos) {
+          const {numbers = {}, arrays = {}} = functionInfos[args.length];
+          for (let ndx = 0; ndx < args.length; ++ndx) {
+            const arg = args[ndx];
+            // check the no arguments are undefined
+            if (arg === undefined) {
+              reportFunctionError(ctx, functionName, args, `argument ${ndx} is undefined`);
+            }
+            if (numbers[ndx] !== undefined) {
+              if (numbers[ndx] >= 0)  {
+                // check that argument that is number (positive) is a number
+                if ((typeof arg !== 'number' && !(arg instanceof Number) && arg !== false && arg !== true) || isNaN(arg)) {
+                  reportFunctionError(ctx, functionName, args, `argument ${ndx} is not a number`);
+                }
+              } else {
+                // check that argument that maybe is a number (negative) is not NaN
+                if (!arg instanceof Object && isNaN(arg)) {
+                  reportFunctionError(ctx, functionName, args, `argument ${ndx} is NaN`);
+                }
+              }
+            }
+            // check that an argument that is supposed to be an array of numbers is an array and has no NaNs in the array and no undefined
+            if (arrays[ndx] !== undefined) {
+              if (!Array.isArray(arg) && !isTypedArray(arg)) {
+                reportFunctionError(ctx, functionName, args, `argument ${ndx} is not a array or typedarray`);
+              }
+              for (let i = 0; i < arg.length; ++i) {
+                if (arg[i] === undefined) {
+                  reportFunctionError(ctx, functionName, args, `element ${i} of argument ${ndx} is undefined`);
+                }
+                if (isNaN(arg[i])) {
+                  reportFunctionError(ctx, functionName, args, `element ${i} of argument ${ndx} is NaN`);
+                }
+              }
+            }
+          }
+        }
+
         const result = ctx[functionName].call(ctx, ...args);
         const err = errCtx.getError();
         if (err !== 0) {
@@ -1046,8 +1287,10 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     }
   }
 
-  HTMLCanvasElement.prototype.getContext = (function(oldFn) {
-    return function(...args) {
+  
+  function wrapGetContext(Ctor) {
+    const oldFn = Ctor.prototype.getContext;
+    Ctor.prototype.getContext = function(...args) {
       let ctx = oldFn.call(this, ...args);
       // Using bindTexture to see if it's WebGL. Could check for instanceof WebGLRenderingContext
       // but that might fail if wrapped by debugging extension
@@ -1055,15 +1298,7 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
         ctx = makeDebugContext(ctx, {
           maxDrawCalls: 1000,
           errorFunc: function(err, funcName, args) {
-            const numArgs = args.length;
-            const enumedArgs = [].map.call(args, function(arg, ndx) {
-              let str = glFunctionArgToString(ctx, funcName, numArgs, ndx, arg);
-              // shorten because of long arrays
-              if (str.length > 200) {
-                str = str.substring(0, 200) + '...';
-              }
-              return str;
-            });
+            const stringifiedArgs = glFunctionArgsToString(ctx, funcName, args);
             const msgs = [];
             if (funcName.startsWith('draw')) {
               const program = ctx.getParameter(ctx.CURRENT_PROGRAM);
@@ -1074,14 +1309,21 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
                 msgs.push(...checkAttributes(ctx, funcName, args));
               }
             }
-            const errorMsg = `WebGL error ${glEnumToString(ctx, err)} in ${funcName}(${enumedArgs.join(', ')})${msgs.length ? `\n${msgs.join('\n')}` : ''}`;
+            const errorMsg = `WebGL error ${glEnumToString(ctx, err)} in ${funcName}(${stringifiedArgs})${msgs.length ? `\n${msgs.join('\n')}` : ''}`;
             reportError(errorMsg);
           },
         });
       }
       return ctx;
     };
-  }(HTMLCanvasElement.prototype.getContext));
+  };
+
+  if (typeof HTMLCanvasElement !== undefined) {
+    wrapGetContext(HTMLCanvasElement);
+  }
+  if (typeof OffscreenCanvas !== undefined) {
+    wrapGetContext(OffscreenCanvas);
+  }
 
 })();
 
