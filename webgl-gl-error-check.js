@@ -348,6 +348,43 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
        : [];
   }
 
+  const ARRAY_BUFFER                   = 0x8892;
+  const ELEMENT_ARRAY_BUFFER           = 0x8893;
+  const ARRAY_BUFFER_BINDING           = 0x8894;
+  const ELEMENT_ARRAY_BUFFER_BINDING   = 0x8895;
+  const TEXTURE_2D                     = 0x0DE1;
+  const TEXTURE_3D                     = 0x806F;
+  const TEXTURE_2D_ARRAY               = 0x8C1A;
+  const TEXTURE_CUBE_MAP               = 0x8513;
+  const FRAMEBUFFER                    = 0x8D40;
+  const RENDERBUFFER                   = 0x8D41;
+  const FRAMEBUFFER_BINDING            = 0x8CA6;
+  const RENDERBUFFER_BINDING           = 0x8CA7;
+  const TRANSFORM_FEEDBACK_BUFFER      = 0x8C8E;
+  const TRANSFORM_FEEDBACK_BUFFER_BINDING = 0x8C8F;
+  const DRAW_FRAMEBUFFER               = 0x8CA9;  
+  const READ_FRAMEBUFFER               = 0x8CA8;
+  const READ_FRAMEBUFFER_BINDING       = 0x8CAA;
+  const UNIFORM_BUFFER                 = 0x8A11;
+  const UNIFORM_BUFFER_BINDING         = 0x8A28;
+  const TRANSFORM_FEEDBACK             = 0x8E22;
+  const TRANSFORM_FEEDBACK_BINDING     = 0x8E25;
+
+  const bindPointMap = new Map();
+  bindPointMap.set(ARRAY_BUFFER, ARRAY_BUFFER_BINDING);
+  bindPointMap.set(ELEMENT_ARRAY_BUFFER, ELEMENT_ARRAY_BUFFER_BINDING);
+  bindPointMap.set(TEXTURE_2D, TEXTURE_BINDING_2D);
+  bindPointMap.set(TEXTURE_CUBE_MAP, TEXTURE_BINDING_CUBE_MAP);
+  bindPointMap.set(TEXTURE_3D, TEXTURE_BINDING_3D);
+  bindPointMap.set(TEXTURE_2D_ARRAY, TEXTURE_BINDING_2D_ARRAY);
+  bindPointMap.set(RENDERBUFFER, RENDERBUFFER_BINDING);
+  bindPointMap.set(FRAMEBUFFER, FRAMEBUFFER_BINDING);
+  bindPointMap.set(DRAW_FRAMEBUFFER, FRAMEBUFFER_BINDING);
+  bindPointMap.set(READ_FRAMEBUFFER, READ_FRAMEBUFFER_BINDING);
+  bindPointMap.set(UNIFORM_BUFFER, UNIFORM_BUFFER_BINDING);
+  bindPointMap.set(TRANSFORM_FEEDBACK_BUFFER, TRANSFORM_FEEDBACK_BUFFER_BINDING);
+  bindPointMap.set(TRANSFORM_FEEDBACK, TRANSFORM_FEEDBACK_BINDING);
+
   //------------ [ from https://github.com/KhronosGroup/WebGLDeveloperTools ]
 
   /*
@@ -822,19 +859,22 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     'beginTransformFeedback': { 1: { enums: [0] }},  // WebGL2
 
     // Uniform Buffer Objects and Transform Feedback Buffers
-    'bindBufferBase': { 3: { enums: [0] }, numbers: [1]},  // WebGL2
-    'bindBufferRange': { 5: { enums: [0] }, numbers: [1, 3, 4]},  // WebGL2
+    'bindBufferBase': { 3: { enums: [0], numbers: [1]}},  // WebGL2
+    'bindBufferRange': { 5: { enums: [0], numbers: [1, 3, 4]}},  // WebGL2
     'getIndexedParameter': { 2: { enums: [0], numbers: [1] }},  // WebGL2
     'getActiveUniforms': { 3: { enums: [2] }, arrays: [1]},  // WebGL2
     'getActiveUniformBlockParameter': { 3: { enums: [2], numbers: [1] }},  // WebGL2
     'getActiveUniformBlockName': { 2: {numbers: [1]}}, // WebGL2
     'uniformBlockBinding': { 3: { numbers: [1, 2]}}, // WebGL2
   };
-  for (const fnInfos of Object.values(glFunctionInfos)) {
+  for (const [name, fnInfos] of Object.entries(glFunctionInfos)) {
     for (const fnInfo of Object.values(fnInfos)) {
       convertToObjectIfArray(fnInfo, 'enums');
       convertToObjectIfArray(fnInfo, 'numbers');
       convertToObjectIfArray(fnInfo, 'arrays');
+    }
+    if (/uniform(\d|Matrix)/.test(name)) {
+      fnInfos.errorHelper = getUniformNameErrorMsg;
     }
   }
 
@@ -843,6 +883,20 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       obj[key] = Object.fromEntries(obj[key].map(ndx => [Math.abs(ndx), ndx]));
     }
   }
+
+  /*
+  function indexedBindHelper(gl, funcName, args, value) {
+    const [target, index] = args;
+    switch (target) {
+      case gl.TRANSFORM_FEEDBACK_BUFFER:
+        return gl.getIndexedBinding(gl.TRANSFORM_FEEDBACK_BUFFER_BINDING, index);
+        break;
+      case gl.UNIFORM_BUFFER:
+        return gl.getIndexedBinding(gl.UNIFORM_BUFFER_BINDING, index);
+        break;
+    }
+  }
+  */
 
   function isTypedArray(v) {
     return v.buffer && v.buffer instanceof ArrayBuffer;
@@ -869,63 +923,23 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
         : `/*UNKNOWN WebGL ENUM*/ ${typeof value === 'number' ? `0x${value.toString(16)}` : value}`;
   }
 
-  /**
-   * Returns the string version of a WebGL argument.
-   * Attempts to convert enum arguments to strings.
-   * @param {string} functionName the name of the WebGL function.
-   * @param {number} numArgs the number of arguments passed to the function.
-   * @param {number} argumentIndx the index of the argument.
-   * @param {*} value The value of the argument.
-   * @return {string} The value as a string.
-   */
-  function glFunctionArgToString(gl, functionName, numArgs, argumentIndex, value) {
-    const funcInfos = glFunctionInfos[functionName];
-    if (funcInfos !== undefined) {
-      const funcInfo = funcInfos[numArgs];
-      if (funcInfo !== undefined) {
-        const argTypes = funcInfo.enums;
-        if (argTypes) {
-          const argType = argTypes[argumentIndex];
-          if (argType !== undefined) {
-            if (typeof argType === 'function') {
-              return argType(gl, value);
-            } else {
-              return glEnumToString(gl, value);
-            }
-          }
-        }
+  function getUniformNameErrorMsg(ctx, funcName, args, sharedState) {
+    const location = args[0];
+    const name = sharedState.locationsToNamesMap.get(location);
+    const prg = ctx.getParameter(ctx.CURRENT_PROGRAM);
+    const msgs = [];
+    if (name) {
+      msgs.push(`trying to set uniform '${name}'`);
+    } 
+    if (prg) {
+      const name = sharedState.webglObjectToNamesMap.get(prg);
+      if (name) {
+        msgs.push(`on WebGLProgram("${name}")`);
       }
-    }
-    if (value === null) {
-      return 'null';
-    } else if (value === undefined) {
-      return 'undefined';
-    } else if (Array.isArray(value) || isTypedArray(value)) {
-      return `[${Array.from(value.slice(0, 32)).join(', ')}]`;
     } else {
-      return value.toString();
+      msgs.push('on ** no current program **');
     }
-  }
-
-  /**
-   * Converts the arguments of a WebGL function to a string.
-   * Attempts to convert enum arguments to strings.
-   *
-   * @param {string} functionName the name of the WebGL function.
-   * @param {number} args The arguments.
-   * @return {string} The arguments as a string.
-   */
-  function glFunctionArgsToString(ctx, funcName, args) {
-    const numArgs = args.length;
-    const stringifiedArgs = args.map(function(arg, ndx) {
-      let str = glFunctionArgToString(ctx, funcName, numArgs, ndx, arg);
-      // shorten because of long arrays
-      if (str.length > 200) {
-        str = str.substring(0, 200) + '...';
-      }
-      return str;
-    });
-    return stringifiedArgs.join(', ');
+    return msgs.length ? `: ${msgs.join(' ')}` : '';
   }
 
   /**
@@ -950,10 +964,29 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     const onFunc = options.funcFunc;
     const sharedState = options.sharedState || {
       numDrawCallsRemaining: options.maxDrawCalls || -1,
-      wrappers: {},
+      wrappers: {
+        // custom extension
+        gman_debug_helper: {
+          ctx: {
+            tagObject(webglObject, name) {
+              // There's no easy way to check if it's a WebGLObject
+              // and I guess we mostly don't care but a minor check is probably
+              // okay
+              if (Array.isArray(webglObject) || isTypedArray(webglObject) || typeof webglObject !== 'object') {
+                throw new Error('not a WebGLObject');
+              }
+              sharedState.webglObjectToNamesMap.set(webglObject, name);
+            },
+            getTagForObject(webglObject) {
+              return sharedState.webglObjectToNamesMap.get(webglObject);
+            },
+          },
+        },
+      },
+      locationsToNamesMap: new Map(),
+      webglObjectToNamesMap: new Map(),
     };
     options.sharedState = sharedState;
-    const errorFunc = options.errorFunc;
 
     // Holds booleans for each GL error so after we get the error ourselves
     // we can still return it to the client app.
@@ -964,6 +997,7 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       for (const {ctx, origFuncs} of Object.values(sharedState.wrappers)) {
         Object.assign(ctx, origFuncs);
       }
+      sharedState.locationsToNamesMap = new Map();
     }
 
     function checkMaxDrawCallsAndZeroCount(gl, funcName, ...args) {
@@ -1037,54 +1071,170 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       }
     }
 
+    /*
+    function getWebGLObject(gl, funcName, args, value) {
+      const funcInfos = glFunctionInfos[funcName];
+      if (funcInfos && funcInfos.bindHelper) {
+        return funcInfos.bindHelper(gl, value);
+      }
+      const binding = bindPointMap.get(value);
+      return binding ? gl.getParameter(binding) : null;
+    }
+    */
+
+    /**
+     * Returns the string version of a WebGL argument.
+     * Attempts to convert enum arguments to strings.
+     * @param {string} funcName the name of the WebGL function.
+     * @param {number} numArgs the number of arguments passed to the function.
+     * @param {number} argumentIndx the index of the argument.
+     * @param {*} value The value of the argument.
+     * @return {string} The value as a string.
+     */
+    function glFunctionArgToString(gl, funcName, numArgs, argumentIndex, value) {
+      // there's apparently no easy to find out if something is a WebGLObject
+      // as `WebGLObject` has been hidden. We could check all the types but lets
+      // just check if the user mapped something
+      const name = sharedState.webglObjectToNamesMap.get(value);
+      if (name) {
+        return `${value.constructor.name}("${name}")`;
+      }
+      if (value instanceof WebGLUniformLocation) {
+        const name = sharedState.locationsToNamesMap.get(value);
+        return `WebGLUniformLocation("${name}"})`;
+      }
+      const funcInfos = glFunctionInfos[funcName];
+      if (funcInfos !== undefined) {
+        const funcInfo = funcInfos[numArgs];
+        if (funcInfo !== undefined) {
+          const argTypes = funcInfo.enums;
+          if (argTypes) {
+            const argType = argTypes[argumentIndex];
+            if (argType !== undefined) {
+              if (typeof argType === 'function') {
+                return argType(gl, value);
+              } else {
+                // is it a bind point
+                //
+                // I'm not sure what cases there are. At first I thought I'd
+                // translate every enum representing a bind point into its corresponding
+                // WebGLObject but that fails for `bindXXX` and for `framebufferTexture2D`'s
+                // 3rd argument.
+                //
+                // Maybe it only works if it's not `bindXXX` and if its the first argument?
+                //
+                // issues:
+                //   * bindBufferBase, bindBufferRange, indexed
+                //
+                // should we do something about these?
+                //   O vertexAttrib, enable, vertex arrays implicit, buffer is implicit
+                //       Example: could print
+                //            'Error setting attrib 4 of WebGLVAO("sphere") to WebGLBuffer("sphere positions")
+                //   O drawBuffers implicit
+                //       Example: 'Error trying to set drawBuffers on WebGLFrameBuffer('post-processing-fb)
+                if (!funcName.startsWith('bind') && argumentIndex === 0) {
+                  const binding = bindPointMap.get(value);
+                  if (binding) {
+                    const webglObject = gl.getParameter(binding);
+                    if (webglObject) {
+                      const name = sharedState.webglObjectToNamesMap.get(webglObject);
+                      if (name) {
+                        return `${webglObject.constructor.name}("${name}")`;
+                      }
+                    }
+                  }
+                }
+                return glEnumToString(gl, value);
+              }
+            }
+          }
+        }
+      }
+      if (value === null) {
+        return 'null';
+      } else if (value === undefined) {
+        return 'undefined';
+      } else if (Array.isArray(value) || isTypedArray(value)) {
+        return `[${Array.from(value.slice(0, 32)).join(', ')}]`;
+      } else {
+        return value.toString();
+      }
+    }
+
+    /**
+     * Converts the arguments of a WebGL function to a string.
+     * Attempts to convert enum arguments to strings.
+     *
+     * @param {string} funcName the name of the WebGL function.
+     * @param {number} args The arguments.
+     * @return {string} The arguments as a string.
+     */
+    function glFunctionArgsToString(ctx, funcName, args) {
+      const numArgs = args.length;
+      const stringifiedArgs = args.map(function(arg, ndx) {
+        let str = glFunctionArgToString(ctx, funcName, numArgs, ndx, arg);
+        // shorten because of long arrays
+        if (str.length > 200) {
+          str = str.substring(0, 200) + '...';
+        }
+        return str;
+      });
+      return stringifiedArgs.join(', ');
+    }
+
+
     function reportFunctionError(ctx, funcName, args, msg) {
+      const funcInfos = glFunctionInfos[funcName];
+      if (funcInfos && funcInfos.errorHelper) {
+        msg = msg + funcInfos.errorHelper(ctx, funcName, args, sharedState);
+      }
       const stringifiedArgs = glFunctionArgsToString(ctx, funcName, args);
       const errorMsg = `error in ${funcName}(${stringifiedArgs}): ${msg}`;
       reportError(errorMsg);
     }
 
     // Makes a function that calls a WebGL function and then calls getError.
-    function makeErrorWrapper(ctx, functionName) {
-      const origFn = ctx[functionName];
-      const check = functionName.startsWith('draw') ? checkMaxDrawCallsAndZeroCount : (specials[functionName] || noop);
-      ctx[functionName] = function(...args) {
+    function makeErrorWrapper(ctx, funcName) {
+      const origFn = ctx[funcName];
+      const check = funcName.startsWith('draw') ? checkMaxDrawCallsAndZeroCount : (specials[funcName] || noop);
+      ctx[funcName] = function(...args) {
         if (onFunc) {
-          onFunc(functionName, args);
+          onFunc(funcName, args);
         }
 
-        const functionInfos = glFunctionInfos[functionName];
-        if (functionInfos) {
-          const {numbers = {}, arrays = {}} = functionInfos[args.length];
+        const funcInfos = glFunctionInfos[funcName];
+        if (funcInfos) {
+          const {numbers = {}, arrays = {}} = funcInfos[args.length];
           for (let ndx = 0; ndx < args.length; ++ndx) {
             const arg = args[ndx];
             // check the no arguments are undefined
             if (arg === undefined) {
-              reportFunctionError(ctx, functionName, args, `argument ${ndx} is undefined`);
+              reportFunctionError(ctx, funcName, args, `argument ${ndx} is undefined`);
             }
             if (numbers[ndx] !== undefined) {
               if (numbers[ndx] >= 0)  {
                 // check that argument that is number (positive) is a number
                 if ((typeof arg !== 'number' && !(arg instanceof Number) && arg !== false && arg !== true) || isNaN(arg)) {
-                  reportFunctionError(ctx, functionName, args, `argument ${ndx} is not a number`);
+                  reportFunctionError(ctx, funcName, args, `argument ${ndx} is not a number`);
                 }
               } else {
                 // check that argument that maybe is a number (negative) is not NaN
                 if (!arg instanceof Object && isNaN(arg)) {
-                  reportFunctionError(ctx, functionName, args, `argument ${ndx} is NaN`);
+                  reportFunctionError(ctx, funcName, args, `argument ${ndx} is NaN`);
                 }
               }
             }
             // check that an argument that is supposed to be an array of numbers is an array and has no NaNs in the array and no undefined
             if (arrays[ndx] !== undefined) {
               if (!Array.isArray(arg) && !isTypedArray(arg)) {
-                reportFunctionError(ctx, functionName, args, `argument ${ndx} is not a array or typedarray`);
+                reportFunctionError(ctx, funcName, args, `argument ${ndx} is not a array or typedarray`);
               }
               for (let i = 0; i < arg.length; ++i) {
                 if (arg[i] === undefined) {
-                  reportFunctionError(ctx, functionName, args, `element ${i} of argument ${ndx} is undefined`);
+                  reportFunctionError(ctx, funcName, args, `element ${i} of argument ${ndx} is undefined`);
                 }
                 if (isNaN(arg[i])) {
-                  reportFunctionError(ctx, functionName, args, `element ${i} of argument ${ndx} is NaN`);
+                  reportFunctionError(ctx, funcName, args, `element ${i} of argument ${ndx} is NaN`);
                 }
               }
             }
@@ -1095,9 +1245,22 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
         const err = origGLErrorFn.call(ctx);
         if (err !== 0) {
           glErrorShadow[err] = true;
-          errorFunc(err, functionName, args);
+//          const stringifiedArgs = glFunctionArgsToString(ctx, funcName, args);
+          const msgs = [glEnumToString(ctx, err)];
+          if (funcName.startsWith('draw')) {
+            const program = ctx.getParameter(ctx.CURRENT_PROGRAM);
+            if (!program) {
+              msgs.push('no shader program in use!');
+            } else {
+              msgs.push(...checkFramebufferFeedback(ctx));
+              msgs.push(...checkAttributes(ctx, funcName, args));
+            }
+          }
+          //const errorMsg = ` ${funcName}(${stringifiedArgs})${msgs.length ? `\n${msgs.join('\n')}` : ''}`;
+          //reportError(errorMsg);
+          reportFunctionError(ctx, funcName, args, msgs.join('\n'));
         }
-        check(ctx, functionName, ...args);
+        check(ctx, funcName, ...args);
         return result;
       };
     }
@@ -1105,16 +1268,43 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     function makeGetExtensionWrapper(ctx, propertyName, origGLErrorFn) {
       const origFn = ctx[propertyName];
       ctx[propertyName] = function(...args) {
-        const extensionName = args[0];
-        let ext = sharedState.wrappers[extensionName];
-        if (!ext) {
-          ext = origFn.call(ctx, ...args);
-          if (ext) {
-            augmentWebGLContext(ext, {...options, origGLErrorFn});
-            addEnumsForContext(ext, extensionName);
-          }
+        const extensionName = args[0].toLowerCase();
+        const wrapper = sharedState.wrappers[extensionName];
+        if (wrapper) {
+          return wrapper.ctx;
+        }
+        const ext = origFn.call(ctx, ...args);
+        if (ext) {
+          augmentWebGLContext(ext, extensionName, {...options, origGLErrorFn});
+          addEnumsForContext(ext, extensionName);
         }
         return ext;
+      };
+    }
+
+    function makeGetSupportedExtensionsWrapper(ctx) {
+      const origFn = ctx.getSupportedExtensions;
+      ctx.getSupportedExtensions = function() {
+        return origFn.call(ctx).concat('GMAN_debug_helper');
+      };
+    }
+
+    function makeUniformLocationTracker(ctx) {
+      const origFn = ctx.getUniformLocation;
+      ctx.getUniformLocation = function(program, name) {
+        const location = origFn.call(ctx, program, name);
+        if (location) {
+          sharedState.locationsToNamesMap.set(location, name);
+        }
+        return location;
+      };
+    }
+
+    function makeDeleteWrapper(ctx, funcName) {
+      const origFn = ctx[funcName];
+      ctx[funcName] = function(obj) {
+        sharedState.webglObjectToNamesMap.delete(obj);
+        origFn.call(ctx, obj);
       };
     }
 
@@ -1122,11 +1312,33 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     for (const propertyName in ctx) {
       if (typeof ctx[propertyName] === 'function') {
         origFuncs[propertyName] = ctx[propertyName];
-        if (propertyName !== 'getExtension') {
-          makeErrorWrapper(ctx, propertyName);
-        } else {
-          makeErrorWrapper(ctx, propertyName);
-          makeGetExtensionWrapper(ctx, propertyName, origGLErrorFn);
+        makeErrorWrapper(ctx, propertyName);
+        switch (propertyName) {
+          case 'getExtension':
+            makeGetExtensionWrapper(ctx, propertyName, origGLErrorFn);
+            break;
+          case 'getSupportedExtensions':
+            makeGetSupportedExtensionsWrapper(ctx);
+            break;
+          case 'getUniformLocation':
+            makeUniformLocationTracker(ctx);
+            break;            
+          case 'deleteBuffer':
+          case 'deleteFramebuffer':
+          case 'deleteRenderbuffer':
+          case 'deleteTexture':
+          case 'deleteShader':
+          case 'deleteProgram':
+          case 'deleteQuery':
+          case 'deleteSampler':
+          case 'deleteSync':
+          case 'deleteTransformFeedback':
+          case 'deleteVertexArray':
+          case 'deleteVertexArrayOES':          
+            makeDeleteWrapper(ctx, propertyName);
+            break;
+          default:
+            break;
         }
       }
     }
@@ -1144,7 +1356,7 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       };
     }
 
-    sharedState.wrappers[nameOfClass] = { ctx, origFuncs };
+    sharedState.wrappers[nameOfClass.toLowerCase()] = { ctx, origFuncs };
     if (ctx.bindBuffer) {
       addEnumsForContext(ctx, ctx.bindBufferBase ? 'WebGL2' : 'WebGL');
     }
@@ -1275,23 +1487,8 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       // Using bindTexture to see if it's WebGL. Could check for instanceof WebGLRenderingContext
       // but that might fail if wrapped by debugging extension
       if (ctx && ctx.bindTexture) {
-        augmentWebGLContext(ctx, type.toLowerCase(), {
+        augmentWebGLContext(ctx, type, {
           maxDrawCalls: 1000,
-          errorFunc: function(err, funcName, args) {
-            const stringifiedArgs = glFunctionArgsToString(ctx, funcName, args);
-            const msgs = [];
-            if (funcName.startsWith('draw')) {
-              const program = ctx.getParameter(ctx.CURRENT_PROGRAM);
-              if (!program) {
-                msgs.push('no shader program in use!');
-              } else {
-                msgs.push(...checkFramebufferFeedback(ctx));
-                msgs.push(...checkAttributes(ctx, funcName, args));
-              }
-            }
-            const errorMsg = `WebGL error ${glEnumToString(ctx, err)} in ${funcName}(${stringifiedArgs})${msgs.length ? `\n${msgs.join('\n')}` : ''}`;
-            reportError(errorMsg);
-          },
         });
       }
       return ctx;

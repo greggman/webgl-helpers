@@ -172,8 +172,128 @@ import 'https://greggman.github.io/webgl-helpers/webgl-gl-error-check.js';
 Note: that it stops checking after the first 1000 draw calls. If you want it to check more
 then copy it locally and edit.
 
+### Naming your WebGL objects (buffers, textures, programs, etc..)
+
+The script above adds a special extension `GMAN_debug_helper` with 1 function, `tagObject`. 
+This lets you associate a name with an object. For example
+
+```js
+const ext = gl.getExtension('GMAN_debug_helper');
+const tex = gl.createTexture();
+ext.tagObject(tex, 'background-tex');
+```
+
+Now if you get an error related to `tex` you might get an told it's related to 'background-tex'
+instead of just that you got an error.
+
+4 suggestions for using naming
+
+1.  make some helpers
+
+    ```js
+    const ext = gl.getExtension('GMAN_debug_helper');
+    const tagObject = ext ? ext.tagObject.bind(ext) : () => ();
+    ```
+
+    now you can just unconditionally tag things and if the extension does
+    not exist it will just be a no-op.
+
+    ```js
+    const tex = gl.createTexture();
+    tagObject(tex);
+    ```
+  
+2.  wrap the creations functions
+
+    ```js
+    const ext = gl.getExtension('GMAN_debug_helper');
+    if (ext) {
+      ['Texture', 
+       'Buffer',
+       'Framebuffer',
+       'Renderbuffer',
+       'Shader',
+       'Program',
+       'Query',
+       'Sampler',
+       'Sync',
+       'TransformFeedback',
+       'VertexArray',
+      ].forEach(suffix => {
+         const name = `create${suffix}`;
+         const origFn = gl[name];
+         if (origFn) {
+           gl[name] = function(...args) {
+             const obj = origFn.call(this, ...args);
+             if (obj) {
+               ext.tagObject(obj, args[args.length - 1] || '*unknown*');
+             }
+             return obj;
+           }
+         }
+      });
+    }
+    ```
+
+    Which you use like this
+
+    ```js
+    const shader = gl.createShader(gl.VERTEX_SHADER, 'phongVertexShader');
+    const tex = gl.createTexture('tree-texture');
+    ```
+
+    and they'll still work in normal WebGL is it will ignore
+    the extra parameter.
+
+3. Same as above but not wrapped
+
+    ```js
+    const ext = gl.getExtension('GMAN_debug_helper');
+    const api = {};
+    ['Texture', 
+     'Buffer',
+     'Framebuffer',
+     'Renderbuffer',
+     'Shader',
+     'Program',
+     'Query',
+     'Sampler',
+     'Sync',
+     'TransformFeedback',
+     'VertexArray',
+    ].forEach(suffix => {
+       const name = `create${suffix}`;
+       api[name] = (ext && gl[name])
+           ? function(...args) {
+               const obj = origFn.call(this, ...args);
+               if (obj) {
+                 ext.tagObject(obj, args[args.length - 1] || '*unknown*');
+               }
+               return obj;
+             }
+           : function(...args) {
+             return gl[name].call(this, ...args);
+           };
+    });
+    ```
+
+    Which you use like this
+
+    ```js
+    const shader = api.createShader(gl.VERTEX_SHADER, 'phongVertexShader');
+    const tex = api.createTexture('tree-texture');
+    ```
+
+    If you're allergic to hacking native APIs this is better but you have to
+    remember to use `api.createXXX` instead of `gl.createXXX`
+
+4.  Use your own API.
+
+    Lots of people have wrapped WebGL themselves with things like `class Texture` and
+    `class Framebuffer` or what other functions.
+
 # Why?
 
-You can paste them in a iiddle/pen/sandbox/s.o. just for testing or when doing other experiments.
+You can paste them in a fiddle/pen/sandbox/s.o. just for testing or when doing other experiments.
 Also as a way to document solutions.
 
