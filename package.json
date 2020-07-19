@@ -18,5 +18,8 @@
   "bugs": {
     "url": "https://github.com/greggman/webgl-helpers/issues"
   },
-  "homepage": "https://github.com/greggman/webgl-helpers#readme"
+  "homepage": "https://github.com/greggman/webgl-helpers#readme",
+  "devDependencies": {
+    "eslint": "^7.5.0"
+  }
 }
