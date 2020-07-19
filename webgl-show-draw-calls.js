@@ -10,6 +10,7 @@
   }
 
   function wrapFn(p, fn) {
+    origFn = p[fn];
     p[fn] = function(...args) {
       console.log(fn, glEnumToString(this, args[0]));
       return origFn.call(this, ...args);
