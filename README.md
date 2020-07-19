@@ -303,6 +303,11 @@ instead of just that you got an error.
     Lots of people have wrapped WebGL themselves with things like `class Texture` and
     `class Framebuffer` or what other functions.
 
+As a simple example, naming buffers after the attributes they'll
+be used with (eg. 'position', 'normal'), naming textures by the URL of the img where they
+get their data. Naming vertex array objects by the model ('tree', 'car', 'house'), naming
+framebuffers by their usage ('shadow-depth', 'post-processing'), naming programs by what they do ('phong-shading', 'skybox')...
+
 # Why?
 
 You can paste them in a fiddle/pen/sandbox/s.o. just for testing or when doing other experiments.

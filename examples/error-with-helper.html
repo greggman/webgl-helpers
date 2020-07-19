@@ -8,6 +8,7 @@ const tagObject = ext ? ext.tagObject.bind(ext) : () => {};
 
 const tests = [
   { desc: "test naming objects",
+    expect: /my-test-prg/,
     func() {
       console.assert(gl.getExtension('OES_vertex_array_objects') === gl.getExtension('OES_vertex_array_objects'));
       console.assert(gl.getSupportedExtensions().includes('GMAN_debug_helper'));
@@ -17,6 +18,7 @@ const tests = [
     },
   },
   { desc: "test getting names of uniforms",
+    expect: /diffuseColor.*?NaN/,
     func() {
       const prg = twgl.createProgram(gl, [
         `
@@ -39,7 +41,8 @@ const tests = [
       gl.uniform4fv(loc, [1, 2, 3/'foo', 4]);
     },
   },
-  { desc: "test bad ENUM",
+  { desc: "test bad ENUM 1",
+    expect: /argument.*?is undefined/,
     func() {
       const buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -47,36 +50,60 @@ const tests = [
     },
   },
   {
-    desc: 'test bad enum',
+    desc: 'test bad enum 2',
+    expect: /argument.*?is undefined/,
     func() {
       gl.enable(gl.BLEND);
       gl.enable(gl.CULL_FADE);  // error
       gl.enable(gl.DEPTH_TEST);
     },
   },
-  { desc: 'test bad enum',
+  { desc: 'test bad enum 3',
+    expect: /depth-tex.*?INVALID_VALUE/,
     func() {
       const tex = gl.createTexture();
+      tagObject(tex, 'depth-tex');
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT16, 512, 256, 0, gl.DEPTH_COMPONENT16, gl.INT, null);  // error
     },
   },
-  { desc: 'test named texture',
+  { desc: 'test bad vertex data',
+    expect: /positions-buffer.*?NaN/,
     func() {
+      const buf = gl.createBuffer();
+      tagObject(buf, 'positions-buffer')
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, 12, gl.STATIC_DRAW);
+      gl.bufferData(gl.ARRAY_BUFFER, new ArrayBuffer(13), gl.STATIC_DRAW);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([1, 2, 3/'foo', 4]), gl.STATIC_DRAW);  // error
+    },
+  },
+  { desc: 'test bad texture data',
+    expect: /texImage2D.*?float-texture.*?NaN/,
+    func() {
+      const ext = gl.getExtension('OES_texture_float');
+      if (!ext) {
+        return;
+      }
       const tex = gl.createTexture();
-      tagObject(tex, 'tree-bark-texture')
+      tagObject(tex, 'float-texture')
       gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT16, 512, 256, 0, gl.DEPTH_COMPONENT16, gl.INT, null);  // error
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.FLOAT, null);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.FLOAT, new Float32Array([1, 2, 3/'foo', 4]));  // error
     },
   },  
 ];
 
-for (const {desc, func} of tests) {
+for (const {desc, expect, func} of tests) {
   console.log(`\n\n\n--------[`, desc, ']--------------');
   try {
     func();
   } catch(e) {
     console.error(e);
+    const actual = e.toString();
+    if (!expect.test(actual)) {
+      throw new Error('test failure:', desc);
+    }
   }
 }
 

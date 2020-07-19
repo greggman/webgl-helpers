@@ -547,9 +547,9 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     'texParameterf': {3: { enums: [0, 1] }},
     'texParameteri': {3: { enums: [0, 1, 2] }},
     'texImage2D': {
-      9: { enums: [0, 2, 6, 7], numbers: [1, 3, 4, 5] },
+      9: { enums: [0, 2, 6, 7], numbers: [1, 3, 4, 5], arrays: [-8] },
       6: { enums: [0, 2, 3, 4] },
-      10: { enums: [0, 2, 6, 7], numbers: [1, 3, 4, 5, 9] }, // WebGL2
+      10: { enums: [0, 2, 6, 7], numbers: [1, 3, 4, 5, 9], arrays: [-8] }, // WebGL2
     },
     'texImage3D': {
       10: { enums: [0, 2, 7, 8], numbers: [1, 3, 4, 5] },  // WebGL2
@@ -593,14 +593,14 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
 
     'bindBuffer': {2: { enums: [0] }},
     'bufferData': {
-      3: { enums: [0, 2], numbers: [-1] },
-      4: { enums: [0, 2], numbers: [-1, 3] },  // WebGL2
-      5: { enums: [0, 2], numbers: [-1, 3, 4] },  // WebGL2
+      3: { enums: [0, 2], numbers: [-1], arrays: [-1] },
+      4: { enums: [0, 2], numbers: [-1, 3], arrays: [-1] },  // WebGL2
+      5: { enums: [0, 2], numbers: [-1, 3, 4], arrays: [-1] },  // WebGL2
     },
     'bufferSubData': {
-      3: { enums: [0], numbers: [1] },
-      4: { enums: [0], numbers: [1, 3] },  // WebGL2
-      5: { enums: [0], numbers: [1, 3, 4] },  // WebGL2
+      3: { enums: [0], numbers: [1], arrays: [2] },
+      4: { enums: [0], numbers: [1, 3], arrays: [2] },  // WebGL2
+      5: { enums: [0], numbers: [1, 3, 4], arrays: [2] },  // WebGL2
     },
     'copyBufferSubData': {
       5: { enums: [0], numbers: [2, 3, 4] },  // WeBGL2
@@ -899,7 +899,13 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
   */
 
   function isTypedArray(v) {
-    return v.buffer && v.buffer instanceof ArrayBuffer;
+    return v && v.buffer && v.buffer instanceof ArrayBuffer;
+  }
+
+  function isArrayThatCanHaveBadValues(v) {
+    return Array.isArray(v) ||
+           v instanceof Float32Array ||
+           v instanceof Float64Array;
   }
 
   /**
@@ -1228,15 +1234,20 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
             }
             // check that an argument that is supposed to be an array of numbers is an array and has no NaNs in the array and no undefined
             if (arrays[ndx] !== undefined) {
-              if (!Array.isArray(arg) && !isTypedArray(arg)) {
-                reportFunctionError(ctx, funcName, args, `argument ${ndx} is not a array or typedarray`);
-              }
-              for (let i = 0; i < arg.length; ++i) {
-                if (arg[i] === undefined) {
-                  reportFunctionError(ctx, funcName, args, `element ${i} of argument ${ndx} is undefined`);
+              const isArrayLike = Array.isArray(arg) || isTypedArray(arg);
+              if (arrays[ndx] >= 0) {
+                if (!isArrayLike) {
+                  reportFunctionError(ctx, funcName, args, `argument ${ndx} is not a array or typedarray`);
                 }
-                if (isNaN(arg[i])) {
-                  reportFunctionError(ctx, funcName, args, `element ${i} of argument ${ndx} is NaN`);
+              }
+              if (isArrayLike && isArrayThatCanHaveBadValues(arg)) {
+                for (let i = 0; i < arg.length; ++i) {
+                  if (arg[i] === undefined) {
+                    reportFunctionError(ctx, funcName, args, `element ${i} of argument ${ndx} is undefined`);
+                  }
+                  if (isNaN(arg[i])) {
+                    reportFunctionError(ctx, funcName, args, `element ${i} of argument ${ndx} is NaN`);
+                  }
                 }
               }
             }
