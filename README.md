@@ -150,11 +150,17 @@ and you want it to be something other than the default.
 
 ## webgl-gl-error-check.js
 
-Calls `getError` after every function and throws if there was an error. It checks that
-no arguments to any functions are `undefined`. Pass `0` or `false` where you mean `0` or `false`.
-It checks that no numbers or values in arrays of numbers are `NaN`. If there is a WebGL error
-it tries to provide more info about why, for example framebuffer feedback issues, 
-access out of range issues, ...
+* Calls `getError` after every function and throws if there was an error.
+
+* Checks that no arguments to any functions are `undefined`. 
+
+  Pass `0` or `false` where you mean `0` or `false`.
+
+* Checks that no numbers or values in arrays of numbers are `NaN`. 
+
+* Checks that all non-sampler uniforms are set. (see configuration below)
+
+* If there is a WebGL error it tries to provide more info about why, for example framebuffer feedback issues, access out of range issues, ...
 
 * [without script](https://greggman.github.io/webgl-helpers/examples/error-without-helper.html)
 * [with script](https://greggman.github.io/webgl-helpers/examples/error-with-helper.html)
@@ -169,24 +175,91 @@ or
 import 'https://greggman.github.io/webgl-helpers/webgl-gl-error-check.js';
 ```
 
-The script `throw`s a JavaScript exception when there is an issue so
-if you are using `try`/`catch` to catch errors you might need to print the exceptions inside your catch block.
-You can also turn on "pause on exception" on your JavaScript debugger.
+The script `throw`s a JavaScript exception when there is an issue so if you are
+using `try`/`catch` to catch errors you might need to print the exceptions
+inside your catch block. You can also turn on "pause on exception" on your
+JavaScript debugger.
 
-Throwing seemed more a appropriate than just printing an error because if you get an error you should fix it! I tried
-the script out with all the [three.js examples](https://threejs.org/examples). It found one real bug and 3 half bugs. By half bugs I mean there were 3 examples that functioned but were actually passing
-`NaN` or `null` in the wrong places for a few frames. Arguably it's
-better to fix those so that you can continue to use the helper to
-find real errors. In any case the 360 of 364 examples ran without
-error so you can do it too! 😉
+Throwing seemed more a appropriate than just printing an error because if you
+get an error you should fix it! I tried the script out with all the
+[three.js examples](https://threejs.org/examples). It found 1 real bug and 6 half bugs.
+By half bugs I mean there were 6 examples that functioned but were actually
+passing `NaN` or `null` in the wrong places for a few frames. Arguably it's
+better to fix those so that you can continue to use the helper to find real
+errors. In any case the 357 of 364 examples ran without error so you can do it
+too! 😉
 
-Note: that it stops checking after the first 1000 draw calls. This
-is so hopefully there is no perf it after a few seconds. If you want it to check more or less then copy it locally and edit.
+### `GMAN_debug_helper` extension
+
+The script above adds a special extension `GMAN_debug_helper` with 3 functions
+
+* `tagObject(obj: WebGLObject, name: string): void` - see naming below
+* `getTagForObject(obj: WebGLObject): string` - see naming below
+* `setConfiguration(settings): void` - see configuration below
+
+### Configuration
+
+You don't need to configure anything to use in general but there are some settings
+for special needs.
+
+* `maxDrawCalls` (default: 1000)
+
+  Turns off the checking after this many draw calls. Set to -1 to check forever.
+
+* `failUnsetUniforms`: (default: true)
+
+  Checks that you set uniforms except for samplers and fails if you didn't.
+  It's a common error to forget to set a uniform or to mis-spell the name of
+  a uniform and therefore not set the real one. The common exception is
+  samplers because uniforms default to 0 so not setting a sampler means use
+  texture unit 0 so samplers are not checked.
+  
+  Of course maybe you're not initializing some uniforms on purpose
+  so you can turn off this check. I'd recommend setting them so you get the
+  benefit of this check finding errors.
+
+  Note: uniform blocks are not checked directly. They are checked by WebGL itself
+  in the sense that if you fail to provide uniform buffers for your uniform blocks
+  you'll get an error but there is no easy way to check that you set them.
+
+* `failUnsetSamplerUniforms`: (default: false)
+
+  See above why sampler uniforms are on checked by default. You can force them
+  to be checked by this setting.
+
+There 2 ways to configure
+
+1.  Via the extension and JavaScript.
+
+    Example:
+
+    ```js
+    const gl = someCanvas.getContext('webgl');
+    const ext = gl.getExtension('GMAN_debug_helper');
+    if (ext) {
+      ext.setConfiguration({
+        maxDrawCalls: 2000,
+        failUnsetUniformSamplers: true,
+      });
+    }
+    ```
+
+2. Via an HTML dataset attribute
+
+   Example:
+
+   ```html
+   <script src="https://github.greggman.io/webgl-helpers/webgl-gl-error-check.js"
+           data-gman-webgl-helper='{"maxDrawCalls": 2000, "failUnsetUniformSamplers": true}'
+   </script>
+   ```
+
+   Note: (1) the setting string must be valid JSON. (2) any tag will do, `<div>`, `<span>` etc...
 
 ### Naming your WebGL objects (buffers, textures, programs, etc..)
 
-The script above adds a special extension `GMAN_debug_helper` with 1 function, `tagObject`. 
-This lets you associate a name with an object. For example
+Using the extension you can name your objects. This way when an error is printed
+the names will be inserted where appropriate.
 
 ```js
 const ext = gl.getExtension('GMAN_debug_helper');
@@ -308,8 +381,13 @@ be used with (eg. 'position', 'normal'), naming textures by the URL of the img w
 get their data. Naming vertex array objects by the model ('tree', 'car', 'house'), naming
 framebuffers by their usage ('shadow-depth', 'post-processing'), naming programs by what they do ('phong-shading', 'skybox')...
 
-# Why?
+Just for symmetry the extension also includes `getTagForObject` if you want to look up
+what you string you tagged an object with
 
-You can paste them in a fiddle/pen/sandbox/s.o. just for testing or when doing other experiments.
-Also as a way to document solutions.
+```js
+const buf = gl.createBuffer();
+ext.tagObject(buf, 'normals');
+console.log(ext.getTagForObject(buf));  // prints 'normals'
+```
+
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012, Gregg Tavares.
+ * Copyright 2020, Gregg Tavares.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,10 +29,13 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* global define */
-
 (function() {
   'use strict';  // eslint-disable-line
+
+  // get errors if these are accessed
+  const gl = undefined;
+  const ctx = undefined;  // eslint-disable-line
+  const ext = undefined;  // eslint-disable-line
 
   function isBuiltIn(name) {
     return name.startsWith("gl_") || name.startsWith("webgl_");
@@ -182,7 +185,7 @@ Those parameters require ${sizeNeeded} bytes but the current ELEMENT_ARRAY_BUFFE
         }
         const buffer = gl.getVertexAttrib(ndx, gl.VERTEX_ATTRIB_ARRAY_BUFFER_BINDING);
         if (!buffer) {
-          errors.push(`no buffer bound to attribute (${name}) location: ${i}`);
+          errors.push(`no buffer bound to attribute (${name}) location: ${index}`);
           continue;
         }
         const numComponents = gl.getVertexAttrib(ndx, gl.VERTEX_ATTRIB_ARRAY_SIZE);
@@ -950,26 +953,15 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
 
   /**
    * Given a WebGL context replaces all the functions with wrapped functions
-   * that call gl.getError after every command and calls a function if the
-   * result is not gl.NO_ERROR.
+   * that call gl.getError after every command 
    *
-   * @param {!WebGLRenderingContext} ctx The webgl context to
-   *        wrap.
-   * @param {!function(err, funcName, args): void} opt_onErrorFunc
-   *        The function to call when gl.getError returns an
-   *        error. If not specified the default function calls
-   *        console.log with a message.
-   * @param {!function(funcName, args): void} opt_onFunc The
-   *        function to call when each webgl function is called.
-   *        You can use this to log all calls for example.
-   * @param {!WebGLRenderingContext} opt_err_ctx The webgl context
-   *        to call getError on if different than ctx.
+   * @param {WebGLRenderingContext|Extension} ctx The webgl context to wrap.
+   * @param {string} nameOfClass (eg, webgl, webgl2, OES_texture_float)
    */
   function augmentWebGLContext(ctx, nameOfClass, options = {}) {
     const origGLErrorFn = options.origGLErrorFn || ctx.getError;
-    const onFunc = options.funcFunc;
     const sharedState = options.sharedState || {
-      numDrawCallsRemaining: options.maxDrawCalls || -1,
+      config: options,
       wrappers: {
         // custom extension
         gman_debug_helper: {
@@ -986,11 +978,25 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
             getTagForObject(webglObject) {
               return sharedState.webglObjectToNamesMap.get(webglObject);
             },
+            setConfiguration(config) {
+              Object.assign(sharedState.config, config);
+            },
           },
         },
       },
       locationsToNamesMap: new Map(),
       webglObjectToNamesMap: new Map(),
+      // class UnusedUniformRef {
+      //   index: the index of this name. for foo[3] it's 3
+      //   altNames: Map<string, number>  // example <foo,0>, <foo[0],0>, <foo[1],1>, <foo[2],2>, <foo[3],3>  for `uniform vec4 foo[3]`
+      //   unused: Set<number>    // this is size so for the example above it's `Set<[0, 1, 2, 3]`
+      // }
+      // Both the altName array and the unused Set are shared with an entry in `programToUniformsMap`
+      // by each name (foo, foo[0], foo[1], foo[2]). That we we can unused.delete each element of set
+      // and if set is empty then delete all altNames entries from programToUniformsMap.
+      // When programsToUniformsMap is empty all uniforms have been set.
+      // Map<WebGLProgram, Map<string, UnusedUniformRef>
+      programToUniformsMap: new Map(),
     };
     options.sharedState = sharedState;
 
@@ -1016,10 +1022,10 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
         console.warn(`instanceCount for ${funcName} is 0!`);
       }
 
-      if (sharedState.numDrawCallsRemaining === 0) {
+      if (sharedState.maxDrawCalls === 0) {
         removeChecks();
       }
-      --sharedState.numDrawCallsRemaining;
+      --sharedState.maxDrawCalls;
     }
 
     function noop() {
@@ -1030,7 +1036,84 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       return typeof v === 'number';
     }
 
-    const specials = {
+    function checkUnsetUniforms(ctx, funcName, args) {
+      const unsetUniforms = sharedState.programToUniformsMap.get(sharedState.currentProgram);
+      if (unsetUniforms) {
+        const uniformNames = [];
+        for (const [name, {index, unset}] of unsetUniforms) {
+          if (unset.has(index)) {
+            uniformNames.push(name);
+          }
+        }
+        reportFunctionError(ctx, funcName, args, `uniforms "${uniformNames.join('", "')}" have not been set\nSee docs at https://github.com/greggman/webgl-helpers/ for how to turn off this check`);
+      }
+    }
+
+    const preChecks = {
+      drawArrays: checkUnsetUniforms,
+      drawElements: checkUnsetUniforms,
+      drawArraysInstanced: checkUnsetUniforms,
+      drawElementsInstanced: checkUnsetUniforms,
+      drawArraysInstancedANGLE: checkUnsetUniforms,
+      drawElementsInstancedANGLE: checkUnsetUniforms,
+      drawRangeElements: checkUnsetUniforms,
+    };
+
+    function markUniformRangeAsSet(webGLUniformLocation, count) {
+      const unsetUniforms = sharedState.programToUniformsMap.get(sharedState.currentProgram);
+      if (!unsetUniforms) {
+        // no unset uniforms
+        return;
+      }
+      const uniformName = sharedState.locationsToNamesMap.get(webGLUniformLocation);
+      const info = unsetUniforms.get(uniformName);
+      if (!info) {
+        // this uniform already set
+        return;
+      }
+      // remove unset
+      for (let i = 0; i < count; ++i) {
+        info.unset.delete(info.index + i);
+      }
+      // have all values for this uniform been set?
+      if (!info.unset.size) {
+        // yes, so no checking for this uniform needed anymore
+        for (const [name] of info.altNames) {
+          unsetUniforms.delete(name);
+        }
+        // have all uniforms in this program been set?
+        if (!unsetUniforms.size) {
+          // yes, so no checking needed for this program anymore
+          sharedState.programToUniformsMap.delete(sharedState.currentProgram);
+        }
+      }
+    }
+
+    function markUniformSetV(numValuesPer) {
+      return function(gl, funcName, webGLUniformLocation, ...args) {
+        let [data, srcOffset = 0, srcLength = 0] = args;
+        if (srcLength === 0) {
+          srcLength = data.length - srcOffset;
+        }
+        markUniformRangeAsSet(webGLUniformLocation, srcLength / numValuesPer | 0);
+      };
+    }
+
+    function markUniformSetMatrixV(numValuesPer) {
+      return function(gl, funcName, webGLUniformLocation, transpose, ...args) {
+        let [data, srcOffset = 0, srcLength = 0] = args;
+        if (srcLength === 0) {
+          srcLength = data.length - srcOffset;
+        }
+        markUniformRangeAsSet(webGLUniformLocation, srcLength / numValuesPer | 0);
+      };
+    }
+
+    function markUniformSet(gl, funcName, webGLUniformLocation, ...args) {
+      markUniformRangeAsSet(webGLUniformLocation, 1);
+    }
+
+    const postChecks = {
       // WebGL1
       //   void bufferData(GLenum target, GLsizeiptr size, GLenum usage);
       //   void bufferData(GLenum target, [AllowShared] BufferSource? srcData, GLenum usage);
@@ -1076,7 +1159,58 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
         const arrayBuffer = src.buffer ? src.buffer : src;
         const newView = new Uint8Array(arrayBuffer, srcOffset * elemSize, copySize);
         view.set(newView, dstByteOffset);
-      }
+      },
+
+      drawArrays: checkMaxDrawCallsAndZeroCount,
+      drawElements: checkMaxDrawCallsAndZeroCount,
+      drawArraysInstanced: checkMaxDrawCallsAndZeroCount,
+      drawElementsInstanced: checkMaxDrawCallsAndZeroCount,
+      drawArraysInstancedANGLE: checkMaxDrawCallsAndZeroCount,
+      drawElementsInstancedANGLE: checkMaxDrawCallsAndZeroCount,
+      drawRangeElements: checkMaxDrawCallsAndZeroCount,
+
+      uniform1f: markUniformSet,
+      uniform2f: markUniformSet,
+      uniform3f: markUniformSet,
+      uniform4f: markUniformSet,
+
+      uniform1i: markUniformSet,
+      uniform2i: markUniformSet,
+      uniform3i: markUniformSet,
+      uniform4i: markUniformSet,
+
+      uniform1fv: markUniformSetV(1),
+      uniform2fv: markUniformSetV(2),
+      uniform3fv: markUniformSetV(3),
+      uniform4fv: markUniformSetV(4),
+
+      uniform1iv: markUniformSetV(1),
+      uniform2iv: markUniformSetV(2),
+      uniform3iv: markUniformSetV(3),
+      uniform4iv: markUniformSetV(4),
+
+      uniformMatrix2fv: markUniformSetMatrixV(4),
+      uniformMatrix3fv: markUniformSetMatrixV(9),
+      uniformMatrix4fv: markUniformSetMatrixV(16),
+
+      uniform1ui: markUniformSet,
+      uniform2ui: markUniformSet,
+      uniform3ui: markUniformSet,
+      uniform4ui: markUniformSet,
+
+      uniform1uiv: markUniformSetV(1),
+      uniform2uiv: markUniformSetV(2),
+      uniform3uiv: markUniformSetV(3),
+      uniform4uiv: markUniformSetV(4),
+
+      uniformMatrix3x2fv: markUniformSetMatrixV(6),
+      uniformMatrix4x2fv: markUniformSetMatrixV(8),
+
+      uniformMatrix2x3fv: markUniformSetMatrixV(6),
+      uniformMatrix4x3fv: markUniformSetMatrixV(12),
+
+      uniformMatrix2x4fv: markUniformSetMatrixV(8),
+      uniformMatrix3x4fv: markUniformSetMatrixV(12),
     }
 
     /*
@@ -1190,7 +1324,6 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       return stringifiedArgs.join(', ');
     }
 
-
     function reportFunctionError(ctx, funcName, args, msg) {
       const funcInfos = glFunctionInfos[funcName];
       if (funcInfos && funcInfos.errorHelper) {
@@ -1204,12 +1337,10 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     // Makes a function that calls a WebGL function and then calls getError.
     function makeErrorWrapper(ctx, funcName) {
       const origFn = ctx[funcName];
-      const check = funcName.startsWith('draw') ? checkMaxDrawCallsAndZeroCount : (specials[funcName] || noop);
+      const preCheck = preChecks[funcName] || noop;
+      const postCheck = postChecks[funcName] || noop;
       ctx[funcName] = function(...args) {
-        if (onFunc) {
-          onFunc(funcName, args);
-        }
-
+        preCheck(ctx, funcName, args);
         const funcInfos = glFunctionInfos[funcName];
         if (funcInfos) {
           const {numbers = {}, arrays = {}} = funcInfos[args.length];
@@ -1258,7 +1389,6 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
         const err = origGLErrorFn.call(ctx);
         if (err !== 0) {
           glErrorShadow[err] = true;
-//          const stringifiedArgs = glFunctionArgsToString(ctx, funcName, args);
           const msgs = [glEnumToString(ctx, err)];
           if (funcName.startsWith('draw')) {
             const program = ctx.getParameter(ctx.CURRENT_PROGRAM);
@@ -1269,56 +1399,146 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
               msgs.push(...checkAttributes(ctx, funcName, args));
             }
           }
-          //const errorMsg = ` ${funcName}(${stringifiedArgs})${msgs.length ? `\n${msgs.join('\n')}` : ''}`;
-          //reportError(errorMsg);
           reportFunctionError(ctx, funcName, args, msgs.join('\n'));
         }
-        check(ctx, funcName, ...args);
+        postCheck(ctx, funcName, ...args);
         return result;
       };
     }
 
-    function makeGetExtensionWrapper(ctx, propertyName, origGLErrorFn) {
-      const origFn = ctx[propertyName];
-      ctx[propertyName] = function(...args) {
-        const extensionName = args[0].toLowerCase();
-        const wrapper = sharedState.wrappers[extensionName];
-        if (wrapper) {
-          return wrapper.ctx;
-        }
-        const ext = origFn.call(ctx, ...args);
-        if (ext) {
-          augmentWebGLContext(ext, extensionName, {...options, origGLErrorFn});
-          addEnumsForContext(ext, extensionName);
-        }
-        return ext;
-      };
-    }
-
-    function makeGetSupportedExtensionsWrapper(ctx) {
-      const origFn = ctx.getSupportedExtensions;
-      ctx.getSupportedExtensions = function() {
-        return origFn.call(ctx).concat('GMAN_debug_helper');
-      };
-    }
-
-    function makeUniformLocationTracker(ctx) {
-      const origFn = ctx.getUniformLocation;
-      ctx.getUniformLocation = function(program, name) {
-        const location = origFn.call(ctx, program, name);
-        if (location) {
-          sharedState.locationsToNamesMap.set(location, name);
-        }
-        return location;
-      };
+    function range(start, end) {
+      const array = [];
+      for (let i = start; i < end; ++i) {
+        array.push(i);
+      }
+      return array;
     }
 
     function makeDeleteWrapper(ctx, funcName) {
       const origFn = ctx[funcName];
       ctx[funcName] = function(obj) {
         sharedState.webglObjectToNamesMap.delete(obj);
-        origFn.call(ctx, obj);
+        origFn.call(this, obj);
       };
+    }
+
+    const postHandlers = {
+      getExtension(ctx, propertyName, origGLErrorFn) {
+        const origFn = ctx[propertyName];
+        ctx[propertyName] = function(...args) {
+          const extensionName = args[0].toLowerCase();
+          const wrapper = sharedState.wrappers[extensionName];
+          if (wrapper) {
+            return wrapper.ctx;
+          }
+          const ext = origFn.call(ctx, ...args);
+          if (ext) {
+            augmentWebGLContext(ext, extensionName, {...options, origGLErrorFn});
+            addEnumsForContext(ext, extensionName);
+          }
+          return ext;
+        };
+      },
+
+      getSupportedExtensions(ctx) {
+        const origFn = ctx.getSupportedExtensions;
+        ctx.getSupportedExtensions = function() {
+          return origFn.call(this).concat('GMAN_debug_helper');
+        };
+      },
+
+      getUniformLocation(ctx) {
+        const origFn = ctx.getUniformLocation;
+        ctx.getUniformLocation = function(program, name) {
+          const location = origFn.call(this, program, name);
+          if (location) {
+            sharedState.locationsToNamesMap.set(location, name);
+          }
+          return location;
+        };
+      },
+
+      linkProgram(ctx) {
+        const origFn = ctx.linkProgram;
+        ctx.linkProgram = function(program) {
+          const gl = this;
+          origFn.call(this, program);
+          const success = this.getProgramParameter(program, gl.LINK_STATUS);
+          if (success) {
+            sharedState.programToUniformsMap.delete(program);
+            if (!sharedState.config.failUnsetUniforms) {
+              return;
+            }
+            const unsetUniforms = new Map();
+            const numUniforms = this.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+            for (let ii = 0; ii < numUniforms; ++ii) {
+              const {name, type, size} = gl.getActiveUniform(program, ii);
+              if (isBuiltIn(name) || (isSampler(type) && !sharedState.config.failUnsetUniformSamplers)) {
+                continue;
+              }
+              // skip uniform block uniforms
+              const location = gl.getUniformLocation(program, name);
+              if (!location) {
+                continue;
+              }
+              const altNames = new Map([[name, 0]]);
+              let baseName = name;
+              if (name.endsWith('[0]')) {
+                baseName = name.substr(0, name.length - 3);
+                altNames.set(baseName, 0);
+              }
+              if (size > 1) {
+                for (let s = 0; s < size; ++s) {
+                  altNames.set(`${baseName}[${s}]`, s);
+                }
+              }
+              const unset = new Set(range(0, size));
+              for (const [name, index] of altNames) {
+                unsetUniforms.set(name, {
+                  index,
+                  unset,
+                  altNames,
+              });
+              }
+            }
+            if (unsetUniforms.size) {
+              sharedState.programToUniformsMap.set(program, unsetUniforms);
+            }
+          }
+        }
+      },
+
+      useProgram(ctx) {
+        const origFn = ctx.useProgram;
+        ctx.useProgram = function(program) {
+          origFn.call(this, program);
+          sharedState.currentProgram = program;
+        };
+      },
+
+      deleteProgram(ctx, funcName) {
+        makeDeleteWrapper(ctx, funcName);
+        const origFn = ctx.deleteProgram;
+        ctx.deleteProgram = function(program) {
+          if (sharedState.currentProgram === program) {
+            sharedState.currentProgram = undefined;
+          }
+          origFn.call(this, program);
+          sharedState.programToUniformsMap.delete(program);
+        };
+      },
+
+      deleteBuffer: makeDeleteWrapper,
+      deleteFramebuffer: makeDeleteWrapper,
+      deleteRenderbuffer: makeDeleteWrapper,
+      deleteTexture: makeDeleteWrapper,
+      deleteShader: makeDeleteWrapper,
+      deleteQuery: makeDeleteWrapper,
+      deleteSampler: makeDeleteWrapper,
+      deleteSync: makeDeleteWrapper,
+      deleteTransformFeedback: makeDeleteWrapper,
+      deleteVertexArray: makeDeleteWrapper,
+      deleteVertexArrayOES: makeDeleteWrapper,
     }
 
     // Wrap each function
@@ -1326,32 +1546,9 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       if (typeof ctx[propertyName] === 'function') {
         origFuncs[propertyName] = ctx[propertyName];
         makeErrorWrapper(ctx, propertyName);
-        switch (propertyName) {
-          case 'getExtension':
-            makeGetExtensionWrapper(ctx, propertyName, origGLErrorFn);
-            break;
-          case 'getSupportedExtensions':
-            makeGetSupportedExtensionsWrapper(ctx);
-            break;
-          case 'getUniformLocation':
-            makeUniformLocationTracker(ctx);
-            break;            
-          case 'deleteBuffer':
-          case 'deleteFramebuffer':
-          case 'deleteRenderbuffer':
-          case 'deleteTexture':
-          case 'deleteShader':
-          case 'deleteProgram':
-          case 'deleteQuery':
-          case 'deleteSampler':
-          case 'deleteSync':
-          case 'deleteTransformFeedback':
-          case 'deleteVertexArray':
-          case 'deleteVertexArrayOES':          
-            makeDeleteWrapper(ctx, propertyName);
-            break;
-          default:
-            break;
+        const postHandler = postHandlers[propertyName];
+        if (postHandler) {
+          postHandler(ctx, propertyName, origGLErrorFn);
         }
       }
     }
@@ -1500,9 +1697,21 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       // Using bindTexture to see if it's WebGL. Could check for instanceof WebGLRenderingContext
       // but that might fail if wrapped by debugging extension
       if (ctx && ctx.bindTexture) {
-        augmentWebGLContext(ctx, type, {
+        const config = {
           maxDrawCalls: 1000,
+          failUnsetUniforms: true,
+          failUnsetSamplerUniforms: false,
+        };
+        document.querySelectorAll('[data-gman-debug-helper]').forEach(elem => {
+          const str = elem.dataset.gmanDebugHelper;
+          try {
+            Object.assign(config, JSON.parse());
+          } catch (e) {
+            e.message += `\n${str}\nfailed to parse data-gman-debug-helper as JSON in: ${elem.outerHTML}`;
+            throw e;
+          }
         });
+        augmentWebGLContext(ctx, type, config);
       }
       return ctx;
     };
