@@ -1045,7 +1045,8 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
              : src.length - srcOffset;
           const elemSize = isDataView ? 1 : src.BYTES_PER_ELEMENT;
           const bufSize = copyLength * elemSize;
-          bufferToIndices.set(buffer, src.buffer.slice(srcOffset * elemSize, bufSize));
+          const arrayBuffer = src.buffer ? src.buffer : src;
+          bufferToIndices.set(buffer, arrayBuffer.slice(srcOffset * elemSize, bufSize));
         }
       },
       // WebGL1
@@ -1066,7 +1067,8 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
            : src.length - srcOffset;
         const elemSize = isDataView ? 1 : src.BYTES_PER_ELEMENT;
         const copySize = copyLength * elemSize;
-        const newView = new Uint8Array(src.buffer, srcOffset * elemSize, copySize);
+        const arrayBuffer = src.buffer ? src.buffer : src;
+        const newView = new Uint8Array(arrayBuffer, srcOffset * elemSize, copySize);
         view.set(newView, dstByteOffset);
       }
     }

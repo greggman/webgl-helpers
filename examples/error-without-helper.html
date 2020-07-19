@@ -1,18 +1,83 @@
+<script src="js/twgl-full.min.js"></script>
 <p>see JavaScript console</p>
-<canvas></canvas>
 <script>
-const gl = document.querySelector('canvas').getContext('webgl');
+const gl = document.createElement('canvas').getContext('webgl');
+const ext = gl.getExtension('GMAN_debug_helper');
+const tagObject = ext ? ext.tagObject.bind(ext) : () => {};
 
-const buf = gl.createBuffer();
-gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-gl.vertexAttribPointer(0, 1, gl.BYE, false, 0, 0);  // error
+const tests = [
+  { desc: "test naming objects",
+    func() {
+      console.assert(gl.getExtension('OES_vertex_array_objects') === gl.getExtension('OES_vertex_array_objects'));
+      console.assert(gl.getSupportedExtensions().includes('GMAN_debug_helper'));
+      const p = gl.createProgram();
+      tagObject(p, 'my-test-prg');
+      gl.useProgram(p);
+    },
+  },
+  { desc: "test getting names of uniforms",
+    func() {
+      const prg = twgl.createProgram(gl, [
+        `
+          void main() {
+             gl_Position = vec4(0);
+          }
+        `,
+        `
+          precision mediump float;
+          uniform vec4 diffuseColor;
+          void main() {
+            gl_FragColor = diffuseColor;
+          }
+        `,
+      ]);
+      tagObject(prg, 'simple program');
+      gl.useProgram(prg);
+      const loc = gl.getUniformLocation(prg, 'diffuseColor');
+      gl.uniform4fv(loc, [1, 2, 3, 4]);
+      gl.uniform4fv(loc, [1, 2, 3/'foo', 4]);
+    },
+  },
+  { desc: "test bad ENUM",
+    func() {
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.vertexAttribPointer(0, 1, gl.BYE, false, 0, 0);  // error
+    },
+  },
+  {
+    desc: 'test bad enum',
+    func() {
+      gl.enable(gl.BLEND);
+      gl.enable(gl.CULL_FADE);  // error
+      gl.enable(gl.DEPTH_TEST);
+    },
+  },
+  { desc: 'test bad enum',
+    func() {
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT16, 512, 256, 0, gl.DEPTH_COMPONENT16, gl.INT, null);  // error
+    },
+  },
+  { desc: 'test named texture',
+    func() {
+      const tex = gl.createTexture();
+      tagObject(tex, 'tree-bark-texture')
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT16, 512, 256, 0, gl.DEPTH_COMPONENT16, gl.INT, null);  // error
+    },
+  },  
+];
 
-gl.enable(gl.BLEND);
-gl.enable(gl.CULL_FADE);  // error
-gl.enable(gl.DEPTH_TEST);
+for (const {desc, func} of tests) {
+  try {
+    func();
+  } catch(e) {
+    console.log(`\n\n\n--------[`, desc, ']--------------');
+    console.error(e);
+  }
+}
 
-const tex = gl.createTexture();
-gl.bindTexture(gl.TEXTURE_2D, tex);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT16, 512, 256, 0, gl.DEPTH_COMPONENT16, gl.INT, null);  // error
 </script>
 

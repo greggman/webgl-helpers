@@ -72,10 +72,10 @@ const tests = [
 ];
 
 for (const {desc, func} of tests) {
+  console.log(`\n\n\n--------[`, desc, ']--------------');
   try {
     func();
   } catch(e) {
-    console.log(`\n\n\n--------[`, desc, ']--------------');
     console.error(e);
   }
 }
