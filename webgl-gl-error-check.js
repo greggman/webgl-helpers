@@ -979,11 +979,20 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
               return sharedState.webglObjectToNamesMap.get(webglObject);
             },
             setConfiguration(config) {
-              Object.assign(sharedState.config, config);
+              for (const [key, value] of Object.entries(config)) {
+                if (!key in sharedState.config) {
+                  throw new Error(`unknown configuration option: ${key}`);
+                }
+                sharedState.config[key] = value;
+              }
+              for (const name of sharedState.config.ignoreUniforms) {
+                sharedState.ignoredUniforms.add(name);
+              }
             },
           },
         },
       },
+      ignoredUniforms: new Set(),
       locationsToNamesMap: new Map(),
       webglObjectToNamesMap: new Map(),
       // class UnusedUniformRef {
@@ -1099,13 +1108,33 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       };
     }
 
+    function isUniformIgnored(webglUniformLocation) {
+      return sharedState.ignoredUniforms.has(sharedState.locationsToNamesMap.get(webglUniformLocation));
+    }
+
     function markUniformSetMatrixV(numValuesPer) {
       return function(gl, funcName, webGLUniformLocation, transpose, ...args) {
         let [data, srcOffset = 0, srcLength = 0] = args;
         if (srcLength === 0) {
           srcLength = data.length - srcOffset;
         }
-        markUniformRangeAsSet(webGLUniformLocation, srcLength / numValuesPer | 0);
+        const count = srcLength / numValuesPer | 0;
+        if (sharedState.config.failZeroMatrixUniforms && !isUniformIgnored(webGLUniformLocation)) {
+          for (let c = 0; c < count; ++c) {
+            let allZero = true;
+            const baseOffset = srcOffset + numValuesPer * c;
+            for (let i = 0; i < numValuesPer; ++i) {
+              if (data[baseOffset + i]) {
+                allZero = false;
+                break;
+              }
+            }
+            if (allZero) {
+              reportFunctionError(gl, funcName, [webGLUniformLocation, transpose, ...args], `matrix is all zeros\nSee docs at https://github.com/greggman/webgl-helpers/ for how to turn off this check`);
+            }
+          }
+        }
+        markUniformRangeAsSet(webGLUniformLocation, count);
       };
     }
 
@@ -1243,7 +1272,7 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       }
       if (value instanceof WebGLUniformLocation) {
         const name = sharedState.locationsToNamesMap.get(value);
-        return `WebGLUniformLocation("${name}"})`;
+        return `WebGLUniformLocation("${name}")`;
       }
       const funcInfos = glFunctionInfos[funcName];
       if (funcInfos !== undefined) {
@@ -1473,7 +1502,9 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
             const numUniforms = this.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
             for (let ii = 0; ii < numUniforms; ++ii) {
               const {name, type, size} = gl.getActiveUniform(program, ii);
-              if (isBuiltIn(name) || (isSampler(type) && !sharedState.config.failUnsetUniformSamplers)) {
+              if (isBuiltIn(name)
+                  || (isSampler(type) && !sharedState.config.failUnsetUniformSamplers)
+                  || sharedState.ignoredUniforms.has(name)) {
                 continue;
               }
               // skip uniform block uniforms
@@ -1701,17 +1732,24 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
           maxDrawCalls: 1000,
           failUnsetUniforms: true,
           failUnsetSamplerUniforms: false,
+          failZeroMatrixUniforms: true,
+          ignoreUniforms: [],
         };
+        augmentWebGLContext(ctx, type, config);
+        const ext = ctx.getExtension('GMAN_debug_helper');
         document.querySelectorAll('[data-gman-debug-helper]').forEach(elem => {
           const str = elem.dataset.gmanDebugHelper;
+          let config;
           try {
-            Object.assign(config, JSON.parse());
+            config = JSON.parse();
           } catch (e) {
             e.message += `\n${str}\nfailed to parse data-gman-debug-helper as JSON in: ${elem.outerHTML}`;
             throw e;
           }
+          if (config) {
+            ext.setConfiguration(config);
+          }
         });
-        augmentWebGLContext(ctx, type, config);
       }
       return ctx;
     };

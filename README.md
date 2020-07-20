@@ -227,6 +227,26 @@ for special needs.
   See above why sampler uniforms are on checked by default. You can force them
   to be checked by this setting.
 
+* `failZeroMatrixUniforms`: (default: true)
+
+  Checks that a uniform matrix not all zeros. It's a common source of errors to
+  forget to set a matrix to the identity and tt seems uncommon to have an all
+  zero matrix. If you have a reason a matrix needs to be all zeros you may want
+  to turn this off. 
+
+* `ignoreUniforms`: (default: [])
+
+  Lets out configure certain uniforms not to be checked. This why you can turn
+  off checking or certain uniforms if they don't above the rules above and still
+  keep the rules on for other uniforms. This configuration is additive. In other words
+
+  ```js
+  ext.setConfiguration({ignoreUniforms: ['foo', 'bar']});
+  ext.setConfiguration({ignoreUniforms: ['baz']});
+  ```
+
+  Ignores uniforms called 'foo', 'bar', and 'baz'.
+
 There 2 ways to configure
 
 1.  Via the extension and JavaScript.
