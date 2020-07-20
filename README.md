@@ -247,6 +247,24 @@ for special needs.
 
   Ignores uniforms called 'foo', 'bar', and 'baz'.
 
+* `throwOnError`: (default: true)
+
+  The default is to throw an exception on error. This has several benefits.
+
+  1. It encourages you to fix the bug.
+
+  2. You'll get a stack trace which you can drill down to find the bug.
+
+  3. If you use "pause on exception" in your browser's dev tools you'll
+     get a live stack trace where you can explore all the local variables
+     and state of your program.
+
+  But, there might be times when you can't avoid the error, say you're
+  running a 3rd party library that gets errors. You should go politely
+  ask them to fix the bug or better, fix yourself and send them a pull request.
+  In any case, if you just want it to print an error instead of throw then
+  you can set `throwOnError` to false.
+
 There 2 ways to configure
 
 1.  Via the extension and JavaScript.
@@ -304,7 +322,7 @@ instead of just that you got an error.
 
     ```js
     const tex = gl.createTexture();
-    tagObject(tex);
+    tagObject(tex, 'checkerboard');
     ```
   
 2.  wrap the creations functions
@@ -346,7 +364,7 @@ instead of just that you got an error.
     const tex = gl.createTexture('tree-texture');
     ```
 
-    and they'll still work in normal WebGL is it will ignore
+    and they'll still work in normal WebGL as it will ignore
     the extra parameter.
 
 3. Same as above but not wrapped
@@ -394,7 +412,8 @@ instead of just that you got an error.
 4.  Use your own API.
 
     Lots of people have wrapped WebGL themselves with things like `class Texture` and
-    `class Framebuffer` or what other functions.
+    `class Framebuffer` or other functions. Those would be a good place to integrate
+    tagging.
 
 As a simple example, naming buffers after the attributes they'll
 be used with (eg. 'position', 'normal'), naming textures by the URL of the img where they
@@ -402,7 +421,7 @@ get their data. Naming vertex array objects by the model ('tree', 'car', 'house'
 framebuffers by their usage ('shadow-depth', 'post-processing'), naming programs by what they do ('phong-shading', 'skybox')...
 
 Just for symmetry the extension also includes `getTagForObject` if you want to look up
-what you string you tagged an object with
+what string you tagged an object with
 
 ```js
 const buf = gl.createBuffer();

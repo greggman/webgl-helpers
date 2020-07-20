@@ -1040,6 +1040,18 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     function noop() {
     }
 
+    function reportError(errorMsg) {
+      const errorInfo = parseStack((new Error()).stack);
+      const msg = errorInfo
+          ? `${errorInfo.url}:${errorInfo.lineNo}: ${errorMsg}`
+          : errorMsg;
+      if (sharedState.config.throwOnError) {
+        throw new Error(msg);
+      } else {
+        console.error(msg);
+      }
+    }
+
     // I know ths is not a full check
     function isNumber(v) {
       return typeof v === 'number';
@@ -1634,10 +1646,6 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     };
   }
 
-  function reportJSError(url, lineNo, colNo, msg) {
-    throw new Error(`${url}:${lineNo}: ${msg}`);
-  }
-
   /**
    * @typedef {Object} StackInfo
    * @property {string} url Url of line
@@ -1711,16 +1719,6 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     };
   }();
 
-  function reportError(errorMsg) {
-    const errorInfo = parseStack((new Error()).stack);
-    if (errorInfo) {
-      reportJSError(errorInfo.url, errorInfo.lineNo, errorInfo.colNo, errorMsg);
-    } else {
-      throw new Error(errorMsg)
-    }
-  }
-
-  
   function wrapGetContext(Ctor) {
     const oldFn = Ctor.prototype.getContext;
     Ctor.prototype.getContext = function(type, ...args) {
@@ -1730,6 +1728,7 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       if (ctx && ctx.bindTexture) {
         const config = {
           maxDrawCalls: 1000,
+          throwOnError: true,
           failUnsetUniforms: true,
           failUnsetSamplerUniforms: false,
           failZeroMatrixUniforms: true,
