@@ -932,6 +932,10 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
         : `/*UNKNOWN WebGL ENUM*/ ${typeof value === 'number' ? `0x${value.toString(16)}` : value}`;
   }
 
+  function quoteStringOrEmpty(s) {
+    return s ? `"${s}"` : '';
+  }
+
   function getUniformNameErrorMsg(ctx, funcName, args, sharedState) {
     const location = args[0];
     const name = sharedState.locationsToNamesMap.get(location);
@@ -943,7 +947,7 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     if (prg) {
       const name = sharedState.webglObjectToNamesMap.get(prg);
       if (name) {
-        msgs.push(`on WebGLProgram("${name}")`);
+        msgs.push(`on WebGLProgram(${quoteStringOrEmpty(name)})`);
       }
     } else {
       msgs.push('on ** no current program **');
@@ -961,6 +965,7 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
   function augmentWebGLContext(ctx, nameOfClass, options = {}) {
     const origGLErrorFn = options.origGLErrorFn || ctx.getError;
     const sharedState = options.sharedState || {
+      baseContext: ctx,
       config: options,
       wrappers: {
         // custom extension
@@ -1055,6 +1060,15 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     // I know ths is not a full check
     function isNumber(v) {
       return typeof v === 'number';
+    }
+
+    const VERTEX_ARRAY_BINDING = 0x85B5;
+
+    function getCurrentVertexArray(ctx) {
+      const gl = sharedState.baseContext;
+      return (gl instanceof WebGL2RenderingContext || sharedState.wrappers.oes_vertex_array_object)
+         ? gl.getParameter(VERTEX_ARRAY_BINDING)
+         : null;
     }
 
     function checkUnsetUniforms(ctx, funcName, args) {
@@ -1322,7 +1336,7 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
                     if (webglObject) {
                       const name = sharedState.webglObjectToNamesMap.get(webglObject);
                       if (name) {
-                        return `${webglObject.constructor.name}("${name}")`;
+                        return `${webglObject.constructor.name}(${quoteStringOrEmpty(name)})`;
                       }
                     }
                   }
@@ -1366,12 +1380,19 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
     }
 
     function reportFunctionError(ctx, funcName, args, msg) {
+      const msgs = [msg];
       const funcInfos = glFunctionInfos[funcName];
       if (funcInfos && funcInfos.errorHelper) {
-        msg = msg + funcInfos.errorHelper(ctx, funcName, args, sharedState);
+        msgs.push(funcInfos.errorHelper(ctx, funcName, args, sharedState));
+      }
+      if (funcName.includes('vertexAttrib') || funcName.startsWith('draw')) {
+        const vao = getCurrentVertexArray(ctx);
+        const name = sharedState.webglObjectToNamesMap.get(vao);
+        const vaoName = `WebGLVertexArrayObject(${quoteStringOrEmpty(name)})`;
+        msgs.push(`with ${vao ? vaoName : 'the default vertex array'} bound`);
       }
       const stringifiedArgs = glFunctionArgsToString(ctx, funcName, args);
-      const errorMsg = `error in ${funcName}(${stringifiedArgs}): ${msg}`;
+      const errorMsg = `error in ${funcName}(${stringifiedArgs}): ${msgs.join('\n')}`;
       reportError(errorMsg);
     }
 
@@ -1427,17 +1448,19 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
         }
 
         const result = origFn.call(ctx, ...args);
-        const err = origGLErrorFn.call(ctx);
+        const gl = sharedState.baseContext;
+        const err = origGLErrorFn.call(gl);
         if (err !== 0) {
           glErrorShadow[err] = true;
           const msgs = [glEnumToString(ctx, err)];
+          // this is draw. drawBuffers starts with draw
           if (funcName.startsWith('draw')) {
-            const program = ctx.getParameter(ctx.CURRENT_PROGRAM);
+            const program = gl.getParameter(ctx.CURRENT_PROGRAM);
             if (!program) {
               msgs.push('no shader program in use!');
             } else {
-              msgs.push(...checkFramebufferFeedback(ctx));
-              msgs.push(...checkAttributes(ctx, funcName, args));
+              msgs.push(...checkFramebufferFeedback(gl));
+              msgs.push(...checkAttributes(gl, funcName, args));
             }
           }
           reportFunctionError(ctx, funcName, args, msgs.join('\n'));
