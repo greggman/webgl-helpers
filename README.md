@@ -148,4 +148,6 @@ and you want it to be something other than the default.
 <script src="https://greggman.github.io/webgl-helpers/webgl-powerpreference-high-performance.js"></script>
 ```
 
+## webgl-gl-error-check.js
 
+This script has moved to [https://github.com/greggman/webgl-lint](https://github.com/greggman/webgl-lint)
