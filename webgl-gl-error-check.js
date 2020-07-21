@@ -911,6 +911,20 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
            v instanceof Float64Array;
   }
 
+  /** @type Map<int, Set<string>> */
+  const enumToStringsMap = new Map();
+  function addEnumsFromAPI(api) {
+    for (let key in api) {
+      const value = api[key];
+      if (typeof value === 'number') {
+        if (!enumToStringsMap.has(value)) {
+          enumToStringsMap.set(value, new Set());
+        }
+        enumToStringsMap.get(value).add(key);
+      }
+    }
+  }
+
   /**
    * Gets an string version of an WebGL enum.
    *
@@ -921,14 +935,9 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
    * @return {string} The string version of the enum.
    */
   function glEnumToString(gl, value) {
-    const matches = [];
-    for (let key in gl) {
-      if (gl[key] === value) {
-        matches.push(key);
-      }
-    }
-    return matches.length
-        ? matches.map(v => `${v}`).join(' | ')
+    const matches = enumToStringsMap.get(value);
+    return matches
+        ? [...matches.keys()].map(v => `${v}`).join(' | ')
         : `/*UNKNOWN WebGL ENUM*/ ${typeof value === 'number' ? `0x${value.toString(16)}` : value}`;
   }
 
@@ -1013,6 +1022,7 @@ needs ${sizeNeeded} bytes for draw but buffer bound to attribute is only ${buffe
       programToUniformsMap: new Map(),
     };
     options.sharedState = sharedState;
+    addEnumsFromAPI(ctx);
 
     // Holds booleans for each GL error so after we get the error ourselves
     // we can still return it to the client app.
