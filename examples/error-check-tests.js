@@ -4,6 +4,8 @@ const gl = document.createElement('canvas').getContext('webgl');
 document.body.appendChild(gl.canvas);
 const ext = gl.getExtension('GMAN_debug_helper');
 const tagObject = ext ? ext.tagObject.bind(ext) : () => {};
+const settings = Object.fromEntries(new URLSearchParams(window.location.search).entries());
+const testGrepRE = new RegExp(escapeRE(settings.grep || ''));
 
 const tests = [
   { desc: "test drawing",
@@ -441,6 +443,9 @@ function check(expect, actual, desc) {
 }
 
 for (const {desc, expect, func} of tests) {
+  if (!testGrepRE.test(desc)) {
+    continue;
+  }
   let actual = 'undefined';
   try {
     console.log(`\n\n--------------[ ${desc} ]---------------`);
