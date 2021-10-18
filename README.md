@@ -4,17 +4,21 @@ Some tiny scripts and debugger snippets that might come in handy.
 
 ## glEnumToString
 
+A simple one but incomplete
+
 ```
-function glEnumToString(gl, value) {
+function glEnumToString(value) {
   const keys = [];
-  for (const key in gl) {
-    if (gl[key] === value) {
+  for (const key in WebGL2RenderingContext) {
+    if (WebGL2RenderingContext[key] === value) {
       keys.push(key);
     }
   }
   return keys.length ? keys.join(' | ') : `0x${value.toString(16)}`;
 }
 ```
+
+The issue with it being incomplete it some enums are specified on extensions. One that covered all enums is a little too involved.
 
 ## Show the available extensions
 
