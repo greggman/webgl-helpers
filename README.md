@@ -18,7 +18,11 @@ function glEnumToString(value) {
 }
 ```
 
-The issue with it being incomplete it some enums are specified on extensions. One that covered all enums is a little too involved.
+The issue with it being incomplete it some enums are specified on extensions. 
+One that covered all enums is a little too involved. Also, GL unforuntately
+chose `0` for 4 different values. `NONE`, `POINTS`, `FALSE`, `NO_ERROR` which
+is why the `join` above. Otherwise you'd need to know the function the value
+is going to be used with in order to return the correct string.
 
 ## Show the available extensions
 
