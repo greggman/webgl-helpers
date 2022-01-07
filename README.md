@@ -159,3 +159,9 @@ and you want it to be something other than the default.
 ## webgl-gl-error-check.js
 
 This script has moved to [https://github.com/greggman/webgl-lint](https://github.com/greggman/webgl-lint)
+
+# Other useful things
+
+* [virtual-webgl](https://github.com/greggman/virtual-webgl): A library to virtualize WebGL to surpass the context limit
+* [webgl-capture](https://github.com/greggman/webgl-capture/): A library to capture GL calls into a reproducible webpage
+* [twgl](https://twgljs.org): A library to simplify using WebGL
