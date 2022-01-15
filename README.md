@@ -1,10 +1,67 @@
 # WebGL Helpers
 
-Some tiny scripts and debugger snippets that might come in handy.
+Some scripts and debugger snippets that might come in handy.
+
+## Show Info
+
+Shows how many vertices, instances, and draw calls 
+are happening per frame as well as the amount of data
+being passed to WebGL via functions like `bufferSubData`
+and `texSubImage2D`.
+
+<img src="https://greggman.github.io/webgl-helpers/images/webgl-show-info.png" />
+
+See Live Example [here](https://greggman.github.io/webgl-helpers/examples/unity/index-webgl-show-info.html).
+
+To use, add this script before your other scripts
+
+```html
+<script src="https://greggman.github.io/webgl-helpers/webgl-show-info.js"></script>
+```
+
+It inserts a `<div>` in the `<body>` of the page and gives it a CSS class name of `webgl-show-info`
+so you can position with with `.webgl-show-info { right: 0; bottom: 0; }` etc...
+
+Some things to note:
+
+Certain things are marked in `red`.
+
+* updating `ELEMENT_ARRAY_BUFFER` buffers can cause perf issues because WebGL is required
+  to make sure no indices are out of bounds. WebGL implementations usually cache this info
+  but if you update the buffer they have to invalidate their cache for that buffer.
+
+  Of course if you can't avoid updating indices then you'll have to live with whatever the
+  perf hit is but if you can redesign so you don't need to update the indices you might find
+  some perf gains.
+
+* Calling any `getXXX` function every frame can cause perf issues. Common things are
+  calling `gl.getUniformLocation` or `gl.getAttribLocation` every frame instead of just
+  looking them up at init time. The same for example for `gl.checkFramebuffer`. Do it once
+  at init time. If you need different arrangements of framebuffer attachments then make
+  multiple framebuffers at init time.
+
+* Setting up vertex attributes (calling `gl.vertexAttribPointer`, `gl.enableVertexAttribArray`, etc....
+  If you want perf you should really be using vertex arrays (ie, `gl.createVertexArray`, `gl.bindVertexArray`).
+  To be honest, every WebGL app I've ever written breaks this rule because WebGL1 didn't support
+  vertex arrays without an extension.
+
+Also, remember that **Premature Optimization is the root of all evil**. The majority of WebGL out there
+just doesn't do enough work that these optimizations will matter. But, if you happen to be getting near
+the limits then these are places you might look for perf gains.
+
+Remember though, find the biggest perf issues first. If you have lots of overdraw, or slow complex shaders,
+or a complex post processing pipeline doing a bunch of passes, or you're just drawing way to much stuff,
+the thing above are probably not your bottleneck.
+
+Here's a script you can paste into the JavaScript console to use on a running page
+
+```js
+(()=>{const s = document.createElement('script');s.src='https://greggman.github.io/webgl-helpers/webgl-show-info.js';document.firstElementChild.appendChild(s)})();
+```
 
 ## glEnumToString
 
-A simple one but incomplete
+A simple one, incomplete, but useful in a pinch.
 
 ```
 function glEnumToString(value) {
@@ -19,7 +76,7 @@ function glEnumToString(value) {
 ```
 
 The issue with it being incomplete it some enums are specified on extensions. 
-One that covered all enums is a little too involved. Also, GL unforuntately
+One that covers all enums is a little too involved. Also, GL unfortunately
 chose `0` for 4 different values. `NONE`, `POINTS`, `FALSE`, `NO_ERROR` which
 is why the `join` above. Otherwise you'd need to know the function the value
 is going to be used with in order to return the correct string.
