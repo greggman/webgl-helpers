@@ -394,34 +394,48 @@
   }
   elem.addEventListener('click', () => {showDetails = !showDetails});
 
+  // this is a bad hack but I don't want to refactor.
+  // Store the counts so that below 1 they are a timer until we stop showing
+  function trickleDown(v) {
+    return v >= 1 ? 0.99 : Math.max(0, v - 0.0025);
+  }
+
   function getPrimCounts(lines) {
     for (const [primType, counts] of primTypeToCountMap.entries()) {
-      lines.push(`${enumToString(primType)}: verts: ${counts.vertCount}, instances: ${counts.instCount}`);
-      counts.vertCount = 0;
-      counts.instCount = 0;
+      if (counts.vertCount > 0 || counts.instCount > 0) {
+        lines.push(`${enumToString(primType)}: verts: ${counts.vertCount | 0}, instances: ${counts.instCount | 0}`);
+        counts.vertCount = trickleDown(counts.vertCount);
+        counts.instCount = trickleDown(counts.instCount);
+      }
     }
   }
 
   function getReadByteTransferDetails(lines) {
     for (const [target, bytes] of readTargetToByteCountMap.entries()) {
-      lines.push(`${enumToString(target)}: ${bytes}`, true);
-      readTargetToByteCountMap.set(target, 0);
+      if (bytes > 0) {
+        lines.push(`${enumToString(target)}: ${bytes | 0}`, true);
+        readTargetToByteCountMap.set(target, trickleDown(bytes));
+      }
     }
   }
 
   function getByteTransferDetails(lines) {
     for (const [target, bytes] of targetToByteCountMap.entries()) {
-      const bad = target === ELEMENT_ARRAY_BUFFER && bytes > 0;
-      lines.push(`${enumToString(target)}: ${bytes}`, bad);
-      targetToByteCountMap.set(target, 0);
+      if (bytes > 0) {
+        const bad = target === ELEMENT_ARRAY_BUFFER && bytes > 0;
+        lines.push(`${enumToString(target)}: ${bytes | 0}`, bad);
+        targetToByteCountMap.set(target, trickleDown(bytes));
+      }
     }
   }
 
   function getDetails(lines) {
     for (const [fnName, count] of counts.entries()) {
-      const {category} = wrappers[fnName];
-      lines.push(`${fnName}: ${count}`, badCategories[category] && count);
-      counts.set(fnName, 0);
+      if (count > 0) {
+        const {category} = wrappers[fnName];
+        lines.push(`${fnName}: ${count | 0}`, badCategories[category] && count);
+        counts.set(fnName, trickleDown(count));
+      }
     }
   }
 
@@ -429,11 +443,13 @@
     const categories = new Map();
     for (const [fnName, count] of counts.entries()) {
       const {category} = wrappers[fnName];
-      categories.set(category, (categories.get(category) || 0) + count)
-      counts.set(fnName, 0);
+      categories.set(category, (categories.get(category) || 0) + count | 0)
+      counts.set(fnName, trickleDown(count));
     }
     for (const [category, count] of categories.entries()) {
-      lines.push(`${category} calls: ${count}`, badCategories[category] && count);
+      if (count > 0) {
+        lines.push(`${category} calls: ${count | 0}`, badCategories[category] && count);
+      }
     }
   }
 
