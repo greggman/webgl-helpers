@@ -127,7 +127,7 @@
     [7, function([target, level, x, y, width, height, format, type, texImageSource]) {
       return {target, level, width: texImageSource.width, height: texImageSource.height, format, type, src: true};
     }, ],
-    [10, function([target, level, x, y, width, height, , format, type]) {
+    [10, function([target, level, x, y, width, height, format, type]) {
       return {target, level, width, height, format, type, src: true};
     }, ],
   ]);
@@ -469,7 +469,12 @@
 
   const lines = new LineManager(elem);
 
-  function update() {
+  let frameCount = 0;
+  let then = 0;
+  function update(now) {
+    const deltaTime = now - then;
+    then = now;
+    lines.push(`frame count: ${frameCount++}, fps: ${(1000 / deltaTime).toFixed(2)}`);
     lines.push('--- [ Primitives ] ---');
     getPrimCounts(lines);
     lines.push('\n---[ Data Transfer (in bytes) ] ---');
