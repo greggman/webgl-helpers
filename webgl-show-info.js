@@ -15,7 +15,7 @@
   }
   enumToStringMap.set(WebGL2RenderingContext.prototype.POINTS, 'POINTS'); // because POINTS = 0 >:(
   function enumToString(v) {
-    return enumToStringMap.get(v) || '*unknown*';
+    return enumToStringMap.get(v) || v;
   }
 
   // I know ths is not a full check
@@ -106,6 +106,7 @@
   }
 
   const targetToByteCountMap = new Map();
+  const readTargetToByteCountMap = new Map();
 
   const texImage2DArgParsersMap = new Map([
     [9, function([target, level, internalFormat, width, height, , format, type, src]) {
@@ -120,8 +121,8 @@
   ]);
 
   const texSubImage2DArgParsersMap = new Map([
-    [9, function([target, level, internalFormat, width, height, , format, type, src]) {
-      return {target, level, internalFormat, width, height, format, type, src: !isNumber(src)};
+    [9, function([target, level, x, y, width, height, format, type, src]) {
+      return {target, level, width, height, format, type, src: !isNumber(src)};
     }, ],
     [7, function([target, level, x, y, width, height, format, type, texImageSource]) {
       return {target, level, width: texImageSource.width, height: texImageSource.height, format, type, src: true};
@@ -177,7 +178,7 @@
     //   void bufferSubData(GLenum target, GLintptr dstByteOffset, [AllowShared] ArrayBufferView srcData,
     //                      GLuint srcOffset, optional GLuint length = 0);
     bufferSubData(gl, funcName, info, args) {
-      const [target, dstByteOffset, src, srcOffset, length = 0] = args;
+      const [target, dstByteOffset, src, srcOffset = 0, length = 0] = args;
       const isDataView = src instanceof DataView;
       const copyLength = length ? length : isDataView
          ? src.byteLength - srcOffset
@@ -185,6 +186,27 @@
       const elemSize = isDataView ? 1 : src.BYTES_PER_ELEMENT;
       const copySize = copyLength * elemSize;
       targetToByteCountMap.set(target, (targetToByteCountMap.get(target) || 0) + copySize);
+    },
+    // undefined getBufferSubData(GLenum target, GLintptr srcByteOffset, [AllowShared] ArrayBufferView dstBuffer,
+    //                            optional GLuint dstOffset = 0, optional GLuint length = 0);
+    getBufferSubData(gl, funcName, info, args) {
+      const [target, offset, dstBuffer, dstOffset = 0, length = 0] = args;
+      const isDataView = dstBuffer instanceof DataView;
+      const copyLength = length ? length : isDataView
+         ? dstBuffer.byteLength - srcOffset
+         : dstBuffer.length - srcOffset;
+      const elemSize = isDataView ? 1 : dstBuffer.BYTES_PER_ELEMENT;
+      const copySize = copyLength * elemSize;
+      readTargetToByteCountMap.set(target, (readTargetToByteCountMap.get(target) || 0) + copySize);
+    },
+    readPixels(gl, funcName, info, args) {
+      const [x, y, width, height, format, type, src] = args;
+      if (isNumber(src)) {
+        return;
+      }
+      const size = computeBytesForFormatType(width, height, 1, format, type);
+      const target = 'readPixels';
+      readTargetToByteCountMap.set(target, (readTargetToByteCountMap.get(target) || 0) + size);
     },
     texImage2D(gl, funcName, info, args) {
       const parser = texImage2DArgParsersMap.get(args.length);
@@ -256,6 +278,9 @@
     bufferData: {category: 'buffer' },
     bufferSubData: {category: 'buffer' },
 
+    getBufferSubData: {category: 'read'},
+    readPixels: {category: 'read'},
+
     drawArrays: {category: 'draw'},
     drawElements: {category: 'draw'},
     drawArraysInstanced: {category: 'draw'},
@@ -268,7 +293,6 @@
     getActiveUniforms: {category: 'get'},
     getAttachedShaders: {category: 'get'},
     getBufferParameter: {category: 'get'},
-    getBufferSubData: {category: 'get'},
     getContextAttributes: {category: 'get'},
     getError: {category: 'getError'},
     getExtension: {category: 'get'},
@@ -320,6 +344,7 @@
     'get': true,
     'getError': true,
     'getUniform/Attrib': true,
+    'read': true,
   };
 
   const counts = new Map();
@@ -337,26 +362,36 @@
     }
   }
 
-  const api = WebGL2RenderingContext.prototype;
-  for (const [fnName, info] of Object.entries(wrappers)) {
-    const origFn = api[fnName];
-    if (origFn) {
-      api[fnName] = wrap(api, fnName, origFn, info);
+  function wrapAPI(api) {
+    for (const [fnName, info] of Object.entries(wrappers)) {
+      const origFn = api[fnName];
+      if (origFn) {
+        api[fnName] = wrap(api, fnName, origFn, info);
+      }
     }
   }
+  wrapAPI(WebGL2RenderingContext.prototype);
+  wrapAPI(WebGLRenderingContext.prototype);
 
   let showDetails = false;
   const elem = document.createElement('div');
   elem.className = 'webgl-show-info';
   elem.style.position = 'fixed';
-  //elem.style.left = '0';
-  //elem.style.top = '0';
+  elem.style.left = '0';
+  elem.style.top = '0';
   elem.style.backgroundColor = '#000';
   elem.style.color = '#FFF';
   elem.style.padding = '0.5em';
-  window.addEventListener('load', () => {
+  elem.style.lineHeight = '1';
+  elem.style.zIndex = '10000';
+  const addToBody = () => {
     document.body.appendChild(elem);
-  });
+  };
+  if (!document.body) {
+    window.addEventListener('load', addToBody);
+  } else {
+    addToBody();
+  }
   elem.addEventListener('click', () => {showDetails = !showDetails});
 
   function getPrimCounts(lines) {
@@ -364,6 +399,13 @@
       lines.push(`${enumToString(primType)}: verts: ${counts.vertCount}, instances: ${counts.instCount}`);
       counts.vertCount = 0;
       counts.instCount = 0;
+    }
+  }
+
+  function getReadByteTransferDetails(lines) {
+    for (const [target, bytes] of readTargetToByteCountMap.entries()) {
+      lines.push(`${enumToString(target)}: ${bytes}`, true);
+      readTargetToByteCountMap.set(target, 0);
     }
   }
 
@@ -404,7 +446,7 @@
     _getElem() {
       if (this.index == this.lineElements.length) {
         const elem = document.createElement('pre');
-        elem.style.margin = 0;
+        elem.style.margin = '0';
         this.rootElem.appendChild(elem);
         this.lineElements.push(elem);
       }
@@ -432,6 +474,10 @@
     getPrimCounts(lines);
     lines.push('\n---[ Data Transfer (in bytes) ] ---');
     getByteTransferDetails(lines);
+    if (readTargetToByteCountMap.size) {
+      lines.push('\n---[ Read Transfer (in bytes) ] ---');
+      getReadByteTransferDetails(lines);
+    }
     lines.push('\n---[ Call Counts ] ---');
     showDetails ? getDetails(lines) : getOverview(lines);
     lines.finish();

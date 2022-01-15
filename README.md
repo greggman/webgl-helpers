@@ -13,6 +13,8 @@ and `texSubImage2D`.
 
 See Live Example [here](https://greggman.github.io/webgl-helpers/examples/unity/index-webgl-show-info.html).
 
+Clicking the info box will show per function counts for the functions being tracked.
+
 To use, add this script before your other scripts
 
 ```html
