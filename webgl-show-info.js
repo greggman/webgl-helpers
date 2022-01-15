@@ -227,7 +227,7 @@
       targetToByteCountMap.set(target, (targetToByteCountMap.get(target) || 0) + size);
     },
     texImage3D(gl, funcName, info, args) {
-      const parser = texSubImage3DArgParsersMap.get(args.length);
+      const parser = texImage3DArgParsersMap.get(args.length);
       const {target, width, height, depth, format, type, src} = parser(args);
       if (!src) {
         return;
@@ -475,7 +475,7 @@
     const deltaTime = now - then;
     then = now;
     lines.push(`frame count: ${frameCount++}, fps: ${(1000 / deltaTime).toFixed(2)}`);
-    lines.push('--- [ Primitives ] ---');
+    lines.push('\n--- [ Primitives ] ---');
     getPrimCounts(lines);
     lines.push('\n---[ Data Transfer (in bytes) ] ---');
     getByteTransferDetails(lines);
