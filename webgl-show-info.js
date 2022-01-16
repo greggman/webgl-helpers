@@ -337,6 +337,41 @@
     vertexAttribPointer: {category: 'attribs'},
     vertexAttribIPointer: {category: 'attribs'},
     vertexAttribDivisor: {category: 'attribs'},
+
+    uniform1ui: {category: 'uniforms'},
+    uniform2ui: {category: 'uniforms'},
+    uniform3ui: {category: 'uniforms'},
+    uniform4ui: {category: 'uniforms'},
+    uniformBlockBinding: {category: 'uniforms'},
+    uniform1f: {category: 'uniforms'},
+    uniform1fv: {category: 'uniforms'},
+    uniform1i: {category: 'uniforms'},
+    uniform1iv: {category: 'uniforms'},
+    uniform1uiv: {category: 'uniforms'},
+    uniform2f: {category: 'uniforms'},
+    uniform2fv: {category: 'uniforms'},
+    uniform2i: {category: 'uniforms'},
+    uniform2iv: {category: 'uniforms'},
+    uniform2uiv: {category: 'uniforms'},
+    uniform3f: {category: 'uniforms'},
+    uniform3fv: {category: 'uniforms'},
+    uniform3i: {category: 'uniforms'},
+    uniform3iv: {category: 'uniforms'},
+    uniform3uiv: {category: 'uniforms'},
+    uniform4f: {category: 'uniforms'},
+    uniform4fv: {category: 'uniforms'},
+    uniform4i: {category: 'uniforms'},
+    uniform4iv: {category: 'uniforms'},
+    uniform4uiv: {category: 'uniforms'},
+    uniformMatrix2fv: {category: 'uniforms'},
+    uniformMatrix2x3fv: {category: 'uniforms'},
+    uniformMatrix2x4fv: {category: 'uniforms'},
+    uniformMatrix3fv: {category: 'uniforms'},
+    uniformMatrix3x2fv: {category: 'uniforms'},
+    uniformMatrix3x4fv: {category: 'uniforms'},
+    uniformMatrix4fv: {category: 'uniforms'},
+    uniformMatrix4x2fv: {category: 'uniforms'},
+    uniformMatrix4x3fv: {category: 'uniforms'},
   };
 
   const badCategories = {
@@ -403,7 +438,7 @@
   function getPrimCounts(lines) {
     for (const [primType, counts] of primTypeToCountMap.entries()) {
       if (counts.vertCount > 0 || counts.instCount > 0) {
-        lines.push(`${enumToString(primType)}: verts: ${counts.vertCount | 0}, instances: ${counts.instCount | 0}`);
+        lines.push(`${enumToString(primType)}: verts: ${counts.vertCount | 0}, instances: ${counts.instCount | 0}`, false, Math.max(counts.vertCount, counts.instCount));
         counts.vertCount = trickleDown(counts.vertCount);
         counts.instCount = trickleDown(counts.instCount);
       }
@@ -413,7 +448,7 @@
   function getReadByteTransferDetails(lines) {
     for (const [target, bytes] of readTargetToByteCountMap.entries()) {
       if (bytes > 0) {
-        lines.push(`${enumToString(target)}: ${bytes | 0}`, true);
+        lines.push(`${enumToString(target)}: ${bytes | 0}`, true, bytes);
         readTargetToByteCountMap.set(target, trickleDown(bytes));
       }
     }
@@ -423,7 +458,7 @@
     for (const [target, bytes] of targetToByteCountMap.entries()) {
       if (bytes > 0) {
         const bad = target === ELEMENT_ARRAY_BUFFER && bytes > 0;
-        lines.push(`${enumToString(target)}: ${bytes | 0}`, bad);
+        lines.push(`${enumToString(target)}: ${bytes | 0}`, bad, bytes);
         targetToByteCountMap.set(target, trickleDown(bytes));
       }
     }
@@ -433,7 +468,7 @@
     for (const [fnName, count] of counts.entries()) {
       if (count > 0) {
         const {category} = wrappers[fnName];
-        lines.push(`${fnName}: ${count | 0}`, badCategories[category] && count);
+        lines.push(`${fnName}: ${count | 0}`, badCategories[category] && count, count);
         counts.set(fnName, trickleDown(count));
       }
     }
@@ -448,7 +483,7 @@
     }
     for (const [category, count] of categories.entries()) {
       if (count > 0) {
-        lines.push(`${category} calls: ${count | 0}`, badCategories[category] && count);
+        lines.push(`${category} calls: ${count | 0}`, badCategories[category] && count, count);
       }
     }
   }
@@ -470,10 +505,10 @@
       elem.style.display = '';
       return elem;
     }
-    push(msg, bad = false) {
+    push(msg, bad = false, opacity = 1) {
       const elem = this._getElem();
       elem.textContent = msg;
-      elem.style.color = bad ? 'red' : '';
+      elem.style.color = `rgba(${bad ? '255, 0, 0' : '255, 255, 255'}, ${Math.min(opacity, 1)})`;
     }
     finish() {
       for (let i = this.index; i < this.lineElements.length; ++i) {
