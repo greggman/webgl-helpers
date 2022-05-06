@@ -90,6 +90,29 @@ document.createElement("canvas").getContext("webgl").getSupportedExtensions().jo
 document.createElement("canvas").getContext("webgl2").getSupportedExtensions().join('\n');
 ```
 
+## Print out *most* of the limits
+
+```
+{
+    const gl = document.createElement('canvas').getContext('webgl2');
+    const m = {};
+    for (const key in gl) {
+      if (key.startsWith("MAX_")) {
+          m[key] = gl.getParameter(gl[key]);
+      }
+    }
+    console.log(JSON.stringify(m, null, 2));
+}
+```
+
+You could just go to [webglreport.com](https://webglreport.com) to see the limits but I needed to be able to compare.
+
+```
+a = <data from above on machine 1>
+b = <data from above on machine 2>
+console.log(Object.entries(a).map(([k, v]) => `${v.toString().padStart(10)} ${b[k].toString().padStart(10)} : ${k}`).join('\n'))
+```
+
 ## Spy on draw calls
 
 Copy and paste this into the JavaScript console
