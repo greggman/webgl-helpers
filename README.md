@@ -151,6 +151,20 @@ And here's [the same with three.js](https://greggman.github.io/webgl-helpers/exa
 
 <img src="https://greggman.github.io/webgl-helpers/images/threejs-log-shaders.png" />
 
+## webgl-bad-log-shaders.js
+
+Same as above but only logs a shader if it fails to compile. This can be useful
+if you have a big project like a Unity project and you want to extract the
+shader to file an [MCVE bug report](https://en.wikipedia.org/wiki/Minimal_reproducible_example).
+
+Add this to the top of your HTML file
+
+```
+<script src="https://greggman.github.io/webgl-helpers/webgl-log-bad-shaders.js"></script>
+```
+
+If a shader fails to compile or a program fails to link it will print an error and their source code to the console.
+
 ## webgl-dump-shaders.js
 
 Same as above except you can possibly copy and paste this contents into the JS console.
