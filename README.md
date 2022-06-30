@@ -90,6 +90,37 @@ document.createElement("canvas").getContext("webgl").getSupportedExtensions().jo
 document.createElement("canvas").getContext("webgl2").getSupportedExtensions().join('\n');
 ```
 
+## Show the VENDOR / RENDERER
+
+Show both `low-power` and `high-performance`
+
+```
+{
+    for (const powerPreference of ["low-power", "high-performance"]) {
+        const gl = document.createElement("canvas").getContext("webgl");
+        const ext = gl.getExtension("WEBGL_debug_renderer_info");
+        console.log(`${powerPreference}\n${["VENDOR", "RENDERER", "UNMASKED_RENDERER_WEBGL", "UNMASKED_VENDOR_WEBGL"].map(name => {
+            const pname = ext[name] || gl[name];
+            return pname ? `${name}: ${gl.getParameter(pname)}` : "";
+        }).filter(v => v).join('\n')}`);
+    }
+}
+```
+
+Show the default (usually `low-power` but up to the browser). Also, if you have a variable `gl` or some other context just delete the first line or change to `gl = <identifierForYourContext>`
+
+```
+{
+    const gl = document.createElement("canvas").getContext("webgl");
+    const ext = gl.getExtension("WEBGL_debug_renderer_info");
+    console.log(["VENDOR", "RENDERER", "UNMASKED_RENDERER_WEBGL", "UNMASKED_VENDOR_WEBGL"].map(name => {
+        const pname = ext[name] || gl[name];
+        return pname ? `${name}: ${gl.getParameter(pname)}` : "";
+    }).filter(v => v).join('\n'));
+}
+```
+
+
 ## Print out *most* of the limits
 
 ```
