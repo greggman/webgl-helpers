@@ -86,8 +86,8 @@ is going to be used with in order to return the correct string.
 ## Show the available extensions
 
 ```
-document.createElement("canvas").getContext("webgl").getSupportedExtensions().join('\n');
-document.createElement("canvas").getContext("webgl2").getSupportedExtensions().join('\n');
+console.log(document.createElement("canvas").getContext("webgl").getSupportedExtensions().join('\n'));
+console.log(document.createElement("canvas").getContext("webgl2").getSupportedExtensions().join('\n'));
 ```
 
 ## Show the VENDOR / RENDERER
