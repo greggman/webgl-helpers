@@ -208,6 +208,27 @@ For example Google Maps
 
 <img src="https://greggman.github.io/webgl-helpers/images/dump-shaders-google-maps.png" />
 
+Note: This doesn't always work if the app deletes/detaches its shaders from its programs. Another method to dump shaders
+is to open the JavaScript console, add a breakpoint early in the page's JavaScript. When the breakpoint hits,
+paste the following into the JavaScript console.
+
+```js
+WebGL2RenderingContext.prototype.shaderSource = (function(origFn) {
+    return function(shader, source) {
+        origFn.call(this, shader, source);
+        console.log(source);
+    };
+})(WebGL2RenderingContext.prototype.shaderSource);
+WebGLRenderingContext.prototype.shaderSource = (function(origFn) {
+    return function(shader, source) {
+        origFn.call(this, shader, source);
+        console.log(source);
+    };
+})(WebGLRenderingContext.prototype.shaderSource);
+```
+
+The continue the JavaScript execution.
+
 ## webgl-disable2.js
 
 Disables WebGL2. Useful to force something to use WebGL1 assuming it can handle both
