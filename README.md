@@ -164,7 +164,7 @@ Or use
 <script src="https://greggman.github.io/webgl-helpers/webgl-show-draw-calls.js"></script>
 ```
 
-# scripts to use when your including a 3rd party WebGL lib (Unity, three.js, etc...)
+# scripts to use when you're including a 3rd party WebGL lib (Unity, three.js, etc...)
 
 ## webgl-log-shaders.js
 
